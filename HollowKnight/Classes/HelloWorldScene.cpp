@@ -1,4 +1,5 @@
-#include "HelloWorldScene.h"
+ï»¿#include "HelloWorldScene.h"
+#include "Enemy.h"
 
 USING_NS_CC;
 
@@ -7,13 +8,8 @@ Scene* HelloWorld::createScene()
     return HelloWorld::create();
 }
 
-// -----------------------------------------------------------------------
-// ºËĞÄ³õÊ¼»¯º¯Êı
-// -----------------------------------------------------------------------
 bool HelloWorld::init()
 {
-    //////////////////////////////
-    // 1. ¸¸Àà³õÊ¼»¯¼ì²é
     if (!Scene::init())
     {
         return false;
@@ -23,107 +19,196 @@ bool HelloWorld::init()
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
     //////////////////////////////////////////////////////////////////////
-    // 2. Member B ÈÎÎñ: ´î½¨µØÍ¼»·¾³
+    // 1. èƒŒæ™¯
     //////////////////////////////////////////////////////////////////////
-
-    // [¸¨Öú±³¾°] Ìí¼ÓÒ»¸ö»ÒÉ«µ×°å£¬·ÀÖ¹ºÚÉ«µÄÊ¯Í·ÔÚºÚÉ«±³¾°ÏÂ¿´²»¼û
     auto bgLayer = LayerColor::create(Color4B(128, 128, 128, 255));
-    this->addChild(bgLayer, -100); // ·ÅÔÚ×îµ×²ã
+    this->addChild(bgLayer, -100);
 
-    // [¼ÓÔØµØÍ¼] 
-    // Cocos2d-x »á×Ô¶¯ÔÚ Resources/maps/ ÏÂÑ°ÕÒ level1.tmx
-    // ×¢Òâ£ºÇ°ÌáÊÇÄãÒÑ¾­°Ñ TMX ÎÄ¼ş¸´ÖÆµ½ÁË Debug.win32/maps/ ÏÂ
+    //////////////////////////////////////////////////////////////////////
+    // 2. åŠ è½½åœ°å›¾
+    //////////////////////////////////////////////////////////////////////
     auto map = TMXTiledMap::create("maps/level1.tmx");
 
     if (map == nullptr)
     {
-        // ´íÎó´¦Àí£ºÈç¹ûÂ·¾¶²»¶Ô£¬´òÓ¡ºì×Ö
         CCLOG("Error: Failed to load maps/level1.tmx");
     }
     else
     {
-        // ÉèÖÃÃªµãºÍÎ»ÖÃ
         map->setAnchorPoint(Vec2(0, 0));
         map->setPosition(Vec2(0, 0));
-
-        // [¹Ø¼ü] ÉèÖÃÒ»¸ö Tag (±êÇ©)£¬·½±ãÎÒÃÇÔÚ¼üÅÌÊÂ¼şÀïÕÒ»ØÕâ¸öµØÍ¼¶ÔÏó
         map->setTag(123);
-
-        // Ìí¼Óµ½³¡¾°£¬z-order ÉèÎª -99£¬×÷Îª±³¾°
         this->addChild(map, -99);
 
         CCLOG("Success: Map loaded!");
 
-        // ¼ì²éÎïÀí²ãÊÇ·ñ´æÔÚ (ÑéÖ¤ Member B µÄÎïÀíÈÎÎñ)
         auto objectGroup = map->getObjectGroup("Collisions");
         if (objectGroup) {
             CCLOG("Info: Found 'Collisions' layer.");
         }
+
+        //////////////////////////////////////////////////////////////////////
+        // 3. åˆ›å»ºæ•Œäºº
+        //////////////////////////////////////////////////////////////////////
+        
+        auto enemy = Enemy::create("enemies/enemy_walk_1.png");
+        if (enemy)
+        {
+            enemy->setPosition(Vec2(400, 430));
+            enemy->setPatrolRange(300, 800);
+            enemy->setTag(999);
+            this->addChild(enemy, 10);
+            
+            CCLOG("Enemy spawned at position (400, 430)!");
+        }
+        else
+        {
+            CCLOG("Error: Failed to create enemy!");
+        }
     }
 
     //////////////////////////////////////////////////////////////////////
-    // 3. µ÷ÊÔ¹¦ÄÜ: ¼üÅÌ¿ØÖÆµØÍ¼ÒÆ¶¯ (Ä£ÄâÉãÏñ»ú)
+    // 4. é”®ç›˜ç›‘å¬å™¨ï¼ˆåœ°å›¾ç§»åŠ¨ + åŸºäºç¢°æ’çš„æ”»å‡»ï¼‰
     //////////////////////////////////////////////////////////////////////
-
-    // ´´½¨¼üÅÌ¼àÌıÆ÷
     auto listener = EventListenerKeyboard::create();
 
-    // °ó¶¨°´¼ü°´ÏÂÊÂ¼ş (Ê¹ÓÃ Lambda ±í´ïÊ½)
     listener->onKeyPressed = [=](EventKeyboard::KeyCode code, Event* event) {
 
-        // 1. »ñÈ¡µØÍ¼¶ÔÏó (Í¨¹ı¸Õ²ÅÉèÖÃµÄ Tag: 123)
         auto nodeMap = this->getChildByTag(123);
 
-        // Èç¹ûµØÍ¼Ã»¼ÓÔØ³É¹¦£¬Ö±½Ó·µ»Ø£¬·À±ÀÀ£
-        if (nodeMap == nullptr) return;
-
-        // 2. »ñÈ¡µ±Ç°Î»ÖÃ
-        Vec2 currentPos = nodeMap->getPosition();
-        float speed = 50.0f; // Ã¿´Î°´¼üÒÆ¶¯µÄ¾àÀë
-
-        switch (code)
+        // ========================================
+        // åœ°å›¾ç§»åŠ¨é€»è¾‘ï¼ˆä¿æŒä¸å˜ï¼‰
+        // ========================================
+        if (nodeMap != nullptr)
         {
-            // ÏòÓÒ¿´ (D »ò ÓÒ¼ıÍ·) -> µØÍ¼Ó¦¸ÃÏò×óÒÆ
-        case EventKeyboard::KeyCode::KEY_D:
-        case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-            nodeMap->setPosition(currentPos.x - speed, currentPos.y);
-            break;
+            Vec2 currentPos = nodeMap->getPosition();
+            float speed = 50.0f;
 
-            // Ïò×ó¿´ (A »ò ×ó¼ıÍ·) -> µØÍ¼Ó¦¸ÃÏòÓÒÒÆ
-        case EventKeyboard::KeyCode::KEY_A:
-        case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
-            // ÏŞÖÆ£º²»ÒªÒÆ³ö×ó±ß½çÌ«¶à (¿ÉÑ¡)
-            if (currentPos.x + speed <= 0) {
-                nodeMap->setPosition(currentPos.x + speed, currentPos.y);
+            switch (code)
+            {
+            case EventKeyboard::KeyCode::KEY_D:
+            case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
+                nodeMap->setPosition(currentPos.x - speed, currentPos.y);
+                break;
+
+            case EventKeyboard::KeyCode::KEY_A:
+            case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+                if (currentPos.x + speed <= 0) {
+                    nodeMap->setPosition(currentPos.x + speed, currentPos.y);
+                }
+                break;
+
+            case EventKeyboard::KeyCode::KEY_W:
+            case EventKeyboard::KeyCode::KEY_UP_ARROW:
+                nodeMap->setPosition(currentPos.x, currentPos.y - speed);
+                break;
+
+            case EventKeyboard::KeyCode::KEY_S:
+            case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+                nodeMap->setPosition(currentPos.x, currentPos.y + speed);
+                break;
+
+            default:
+                break;
             }
-            break;
 
-            // ÏòÉÏ¿´ (W »ò ÉÏ¼ıÍ·) -> µØÍ¼Ó¦¸ÃÏòÏÂÒÆ
-        case EventKeyboard::KeyCode::KEY_W:
-        case EventKeyboard::KeyCode::KEY_UP_ARROW:
-            nodeMap->setPosition(currentPos.x, currentPos.y - speed);
-            break;
-
-            // ÏòÏÂ¿´ (S »ò ÏÂ¼ıÍ·) -> µØÍ¼Ó¦¸ÃÏòÉÏÒÆ
-        case EventKeyboard::KeyCode::KEY_S:
-        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
-            nodeMap->setPosition(currentPos.x, currentPos.y + speed);
-            break;
-
-        default:
-            break;
+            CCLOG("Map Pos: (%f, %f)", nodeMap->getPosition().x, nodeMap->getPosition().y);
         }
 
-        // ´òÓ¡×ø±ê£¬·½±ãµ÷ÊÔ
-        CCLOG("Map Pos: (%f, %f)", nodeMap->getPosition().x, nodeMap->getPosition().y);
-        };
+        // ========================================
+        // ã€ä¿®æ”¹ã€‘æŒ‰ J é”®æ”»å‡» - åŸºäºç¢°æ’æ£€æµ‹
+        // ========================================
+        if (code == EventKeyboard::KeyCode::KEY_J)
+        {
+            CCLOG("âš” Player pressed J - Creating attack hitbox...");
 
-    // ½«¼àÌıÆ÷Ìí¼Óµ½ÊÂ¼ş·Ö·¢Æ÷
+            // ========================================
+            // 1. å®šä¹‰ç©å®¶ä½ç½®å’Œæ”»å‡»æ–¹å‘
+            // ========================================
+            // å‡è®¾ç©å®¶åœ¨å±å¹•ä¸­å¤®ï¼ˆä½ åç»­å¯ä»¥æ›¿æ¢ä¸ºçœŸå®çš„ç©å®¶ä½ç½®ï¼‰
+            Vec2 playerPos = Vec2(400, 430);
+            bool facingRight = true; // å‡è®¾ç©å®¶é¢å‘å³è¾¹ï¼ˆä½ åç»­å¯ä»¥æ ¹æ®å®é™…æƒ…å†µè°ƒæ•´ï¼‰
+
+            // ========================================
+            // 2. åˆ›å»ºæ”»å‡»åˆ¤å®šæ¡†ï¼ˆAttackBoxï¼‰
+            // ========================================
+            float attackWidth = 80.0f;  // æ”»å‡»èŒƒå›´çš„å®½åº¦
+            float attackHeight = 60.0f; // æ”»å‡»èŒƒå›´çš„é«˜åº¦
+            float attackOffsetX = facingRight ? 40.0f : -40.0f; // æ”»å‡»æ¡†ç›¸å¯¹ç©å®¶çš„åç§»
+
+            // æ”»å‡»æ¡†çš„ä½ç½®
+            Vec2 attackBoxPos = Vec2(
+                playerPos.x + attackOffsetX,
+                playerPos.y
+            );
+
+            // åˆ›å»ºæ”»å‡»åˆ¤å®šåŒºåŸŸï¼ˆRectï¼‰
+            Rect attackBox = Rect(
+                attackBoxPos.x - attackWidth / 2,
+                attackBoxPos.y - attackHeight / 2,
+                attackWidth,
+                attackHeight
+            );
+
+            CCLOG("  Attack Box: (%.0f, %.0f, %.0f, %.0f)", 
+                  attackBox.origin.x, attackBox.origin.y, 
+                  attackBox.size.width, attackBox.size.height);
+
+            // ========================================
+            // 3. ã€å¯é€‰ã€‘å¯è§†åŒ–æ”»å‡»èŒƒå›´ï¼ˆè°ƒè¯•ç”¨ï¼‰
+            // ========================================
+            auto debugBox = DrawNode::create();
+            debugBox->drawSolidRect(
+                Vec2(attackBox.origin.x, attackBox.origin.y),
+                Vec2(attackBox.origin.x + attackBox.size.width, 
+                     attackBox.origin.y + attackBox.size.height),
+                Color4F(1.0f, 0.0f, 0.0f, 0.3f) // åŠé€æ˜çº¢è‰²
+            );
+            this->addChild(debugBox, 1000);
+
+            // 0.2ç§’åç§»é™¤å¯è§†åŒ–æ¡†
+            auto removeAction = Sequence::create(
+                DelayTime::create(0.2f),
+                RemoveSelf::create(),
+                nullptr
+            );
+            debugBox->runAction(removeAction);
+
+            // ========================================
+            // 4. ç¢°æ’æ£€æµ‹ï¼šæ£€æŸ¥æ”»å‡»æ¡†æ˜¯å¦ä¸æ•Œäººé‡å 
+            // ========================================
+            auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
+            
+            if (enemy)
+            {
+                Rect enemyHitbox = enemy->getHitbox();
+                
+                CCLOG("  Enemy Hitbox: (%.0f, %.0f, %.0f, %.0f)",
+                      enemyHitbox.origin.x, enemyHitbox.origin.y,
+                      enemyHitbox.size.width, enemyHitbox.size.height);
+
+                // åˆ¤æ–­ä¸¤ä¸ªçŸ©å½¢æ˜¯å¦ç›¸äº¤
+                if (attackBox.intersectsRect(enemyHitbox))
+                {
+                    CCLOG("  âœ“âœ“âœ“ HIT! Attack box intersects with enemy!");
+                    enemy->takeDamage(1); // é€ æˆä¼¤å®³
+                }
+                else
+                {
+                    CCLOG("  âœ— MISS! Attack box does not hit enemy.");
+                }
+            }
+            else
+            {
+                CCLOG("  âœ— No enemy found to attack");
+            }
+        }
+    };
+
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
-
     //////////////////////////////////////////////////////////////////////
-    // 4. ±ê×¼ÍË³ö°´Å¥ (±£Áô)
+    // 5. é€€å‡ºæŒ‰é’®
     //////////////////////////////////////////////////////////////////////
     auto closeItem = MenuItemImage::create(
         "CloseNormal.png",
@@ -149,7 +234,6 @@ bool HelloWorld::init()
 
     return true;
 }
-
 
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
