@@ -37,9 +37,6 @@ void HelloWorld::parseMapCollisions(TMXTiledMap* map)
         float h = dict["height"].asFloat();
 
         // 4. 创建 Rect 并存起来
-        // 注意：Tiled 的坐标系原点在左上角，Cocos 在左下角
-        // 但 TMXTiledMap 解析器通常会自动帮你转换好 y 坐标，
-        // 如果发现碰撞位置上下颠倒，这里可能需要手动调整 y
         Rect rect = Rect(x, y, w, h);
         _groundRects.push_back(rect);
 
@@ -118,7 +115,7 @@ bool HelloWorld::init()
     // 4. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
     // 文件名如果找不到会用默认的，确保 Knight/idle_1.png 存在
-    _player = Player::create("Knight/idle_1.png");
+    _player = Player::create("Knight/idle/idle_1.png");
 
     if (_player)
     {
@@ -155,10 +152,9 @@ bool HelloWorld::init()
             _player->moveLeft();  // 调用 Player 里的函数
             break;
 
-        case EventKeyboard::KeyCode::KEY_W:
+        case EventKeyboard::KeyCode::KEY_Z:
         case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
-            // 暂时还没写跳跃，先留空或者打印
-            CCLOG("Player Jump (TODO)");
+            _player->jump();
             break;
 
         case EventKeyboard::KeyCode::KEY_J:

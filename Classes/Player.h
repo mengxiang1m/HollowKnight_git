@@ -32,17 +32,29 @@ public:
     void attack();
     void jump(); // 预留跳跃接口
 
+    // 获取用于逻辑判定的碰撞箱 (世界坐标)
+    cocos2d::Rect getCollisionBox() const;
+
     // 获取攻击判定框
     cocos2d::Rect getAttackHitbox() const;
 
 private:
     void initAnimations();
 
+    //碰撞框参数
+    cocos2d::Size _bodySize;      // 物理框的宽和高
+    cocos2d::Vec2 _bodyOffset;    // 物理框相对于图片原点(0,0)的偏移
+
     // ==========================================
     // 【核心架构】逻辑分层
     // ==========================================
-    void updatePhysics(float dt);       // 1. 计算速度、重力、位移
-    void updateCollision(const std::vector<cocos2d::Rect>& platforms); // 2. 修正位置、落地检测
+   // 将物理更新拆解为 X 和 Y 两个独立步骤
+    void updateMovementX(float dt);
+    void updateCollisionX(const std::vector<cocos2d::Rect>& platforms);
+
+    void updateMovementY(float dt);
+    void updateCollisionY(const std::vector<cocos2d::Rect>& platforms);
+
     void updateStateMachine();          // 3. 根据物理结果决定当前状态
 
     State _currentState;
@@ -64,10 +76,16 @@ private:
     cocos2d::Animation* _idleAnim;
     cocos2d::Animation* _dashAnim; 
     cocos2d::Animation* _runAnim; 
+    cocos2d::Animation* _jumpAnim; 
+    cocos2d::Animation* _fallAnim; 
     cocos2d::Animation* _attackAnim; // 暂时还没用到，留着
 
     // 获取固定的物理身体框 (世界坐标)
+    cocos2d::Rect _localBodyRect;
     cocos2d::Rect getBodyRect() const;
+
+    // 专门用于渲染调试框的函数
+    void drawDebugRects();
 };
 
 #endif // __PLAYER_H__
