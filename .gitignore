@@ -1,0 +1,41 @@
+# 忽略 VS 临时文件 (无论在哪一层)
+.vs/
+*/.vs/
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.db
+*.ipch
+*.ap
+
+# 忽略编译生成的二进制文件夹
+bin/
+*/bin/
+obj/
+*/obj/
+
+# 忽略具体的 Debug 和 Release 文件夹 (通常在 proj.win32 下)
+Debug.win32/
+Release.win32/
+x64/
+Debug/
+Release/
+
+# 忽略不开发的平台工程文件夹
+proj.android/
+proj.ios_mac/
+proj.linux/
+
+# 忽略庞大的引擎源码 (节省体积)
+cocos2d/
+
+# 忽略其它编译中间件
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.pch
+*.log
+*.tlog
+*.lastbuildstate
