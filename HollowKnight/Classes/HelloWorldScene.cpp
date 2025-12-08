@@ -1,6 +1,7 @@
 ﻿#include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
+#include "Zombie.h"  // ← 添加这一行
 
 USING_NS_CC;
 
@@ -99,13 +100,24 @@ bool HelloWorld::init()
         auto enemy = Enemy::create("enemies/enemy_walk_1.png");
         if (enemy)
         {
-            // 放在地图的一个平台上
             enemy->setPosition(Vec2(600, 430));
             enemy->setPatrolRange(500, 800);
             enemy->setTag(999);
-            this->addChild(enemy, 5); // Z序 5
-
+            this->addChild(enemy, 5);
             CCLOG("Enemy spawned!");
+        }
+
+        // ========================================
+        // 【新增】创建 Zombie 敌人
+        // ========================================
+        auto zombie = Zombie::create("zombie/walk/walk_1.png");
+        if (zombie)
+        {
+            zombie->setPosition(Vec2(900, 430));
+            zombie->setPatrolRange(800, 1200);
+            zombie->setTag(998); // 使用不同的 Tag
+            this->addChild(zombie, 5);
+            CCLOG("Zombie spawned!");
         }
     }
 
@@ -159,16 +171,11 @@ bool HelloWorld::init()
 
         case EventKeyboard::KeyCode::KEY_J:
         {
-            // 调用主角攻击动画
             _player->attack();
 
-            // ========================================
-            // 攻击判定逻辑 (移植到这里)
-            // ========================================
-            // 获取主角实时的攻击判定框
             Rect attackBox = _player->getAttackHitbox();
 
-            // 找敌人
+            // 攻击普通敌人
             auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
             if (enemy)
             {
@@ -176,8 +183,17 @@ bool HelloWorld::init()
                 {
                     CCLOG("HIT! Player hit the Enemy!");
                     enemy->takeDamage(1);
+                }
+            }
 
-                    // 可选：添加一点打击特效或震屏
+            // 【新增】攻击 Zombie
+            auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+            if (zombie)
+            {
+                if (attackBox.intersectsRect(zombie->getHitbox()))
+                {
+                    CCLOG("HIT! Player hit the Zombie!");
+                    zombie->takeDamage(1);
                 }
             }
         }
@@ -235,7 +251,7 @@ void HelloWorld::update(float dt)
     auto map = this->getChildByTag(123);
     if (_player && map)
     {
-        // === 相机跟随逻辑（保持不变）===
+        // === 相机跟随逻辑 ===
         Size visibleSize = Director::getInstance()->getVisibleSize();
         Size mapSize = map->getContentSize();
         Vec2 playerPos = _player->getPosition();
@@ -254,16 +270,6 @@ void HelloWorld::update(float dt)
         }
 
         float targetY = 0.0f;
-        float minY = -(mapSize.height - visibleSize.height);
-        float maxY = 0.0f;
-
-        if (mapSize.height >= visibleSize.height) {
-            targetY = std::max(minY, std::min(targetY, maxY));
-        }
-        else {
-            targetY = 0.0f;
-        }
-
         this->setPosition(targetX, targetY);
 
         // === 玩家物理更新 ===
@@ -273,22 +279,42 @@ void HelloWorld::update(float dt)
         }
 
         // ========================================
-        // 【新增】敌人与玩家碰撞检测
+        // 【修改】普通敌人碰撞检测
         // ========================================
         auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
         if (enemy && _player)
         {
-            // 获取双方的碰撞箱
             Rect playerBox = _player->getCollisionBox();
             Rect enemyBox = enemy->getHitbox();
 
-            // 判断是否碰撞
             if (playerBox.intersectsRect(enemyBox))
             {
-                // 只有在玩家非无敌状态时才造成伤害
                 if (!_player->isInvincible())
                 {
-                    CCLOG("⚠ Player collided with Enemy! Taking damage...");
+                    CCLOG("⚠ Player collided with Enemy!");
+                    _player->takeDamage(1);
+                }
+            }
+        }
+
+        // ========================================
+        // 【新增】Zombie 敌人更新和碰撞检测
+        // ========================================
+        auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+        if (zombie && _player)
+        {
+            // 更新 Zombie AI (需要传入玩家位置)
+            zombie->update(dt, playerPos);
+
+            // 碰撞检测
+            Rect playerBox = _player->getCollisionBox();
+            Rect zombieBox = zombie->getHitbox();
+
+            if (playerBox.intersectsRect(zombieBox))
+            {
+                if (!_player->isInvincible())
+                {
+                    CCLOG("⚠ Player collided with Zombie!");
                     _player->takeDamage(1);
                 }
             }

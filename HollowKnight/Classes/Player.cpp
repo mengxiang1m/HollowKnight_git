@@ -74,12 +74,8 @@ bool Player::init()
 
 void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
 {
-    // 【新增】受伤状态不处理移动和碰撞
-    if (_currentState == State::DAMAGED)
-    {
-        drawDebugRects();
-        return;
-    }
+    // 【修复】受伤状态也需要处理物理和碰撞，只是不响应输入
+    // 移除之前的早期返回
 
     updateMovementX(dt);
     updateCollisionX(platforms);
@@ -87,7 +83,11 @@ void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
     updateMovementY(dt);
     updateCollisionY(platforms);
 
-    updateStateMachine();
+    // 只有非受伤状态才更新状态机
+    if (_currentState != State::DAMAGED)
+    {
+        updateStateMachine();
+    }
 
     drawDebugRects();
 }
@@ -471,67 +471,56 @@ void Player::takeDamage(int damage)
     CCLOG("💔 Player took %d damage! Health: %d/%d", damage, _health, _maxHealth);
 
     // ========================================
-    // 1. 保存当前脚底位置（防止穿模）
-    // ========================================
-    Vec2 currentPos = this->getPosition();
-    float groundY = currentPos.y; // 脚底的 Y 坐标
-
-    // ========================================
-    // 2. 切换到受伤状态
+    // 1. 切换到受伤状态
     // ========================================
     changeState(State::DAMAGED);
 
     // ========================================
-    // 3. 【关键修复】立即修正位置，保持脚底不变
+    // 2. 【修复】使用速度而不是 JumpTo 动作进行击退
     // ========================================
-    this->setPositionY(groundY);
+    float knockbackSpeedX = 300.0f;  // 水平击退速度
+    float knockbackSpeedY = 400.0f;  // 向上弹起速度
+    float direction = _isFacingRight ? -1.0f : 1.0f;
+    
+    // 直接修改速度，让物理系统处理后续的移动和碰撞
+    _velocity.x = direction * knockbackSpeedX;
+    _velocity.y = knockbackSpeedY;
+
+    // ========================================
+    // 3. 击退减速效果（0.4秒后停止水平移动）
+    // ========================================
+    float knockbackDuration = 0.4f;
+    this->scheduleOnce([this](float dt) {
+        _velocity.x = 0; // 停止水平击退
+    }, knockbackDuration, "knockback_end");
 
     // ========================================
     // 4. 动画播放完毕后恢复 IDLE
     // ========================================
     float damageAnimDuration = 0.4f;
 
-    this->scheduleOnce([this, groundY](float dt) {
+    this->scheduleOnce([this](float dt) {
         if (_currentState == State::DAMAGED)
         {
             changeState(State::IDLE, true);
-            // 再次确保脚底位置正确
-            this->setPositionY(groundY);
             CCLOG("[Player] Damage animation finished, returning to IDLE.");
         }
     }, damageAnimDuration, "damage_anim_end");
 
     // ========================================
-    // 5. 【增强】击退效果（水平 + 垂直）
+    // 5. 闪烁效果（无敌状态视觉反馈）
     // ========================================
-    _velocity.x = 0; // 停止水平移动
-
-    float knockbackDistanceX = 100.0f; // 增加击退距离
-    float knockbackDistanceY = 80.0f;  // 向上弹起
-    float knockbackDuration = 0.4f;
-
-    float direction = _isFacingRight ? -1.0f : 1.0f;
-    Vec2 knockbackTarget = Vec2(
-        currentPos.x + direction * knockbackDistanceX,
-        currentPos.y + knockbackDistanceY
-    );
-
-    // 使用抛物线击退
-    auto jumpTo = JumpTo::create(knockbackDuration, knockbackTarget, knockbackDistanceY, 1);
-    this->runAction(jumpTo);
-
-    // ========================================
-    // 6. 进入无敌状态（3秒）
-    // ========================================
-    _isInvincible = true;
-
-    // 闪烁效果
     auto fadeOut = FadeTo::create(0.1f, 100);
     auto fadeIn = FadeTo::create(0.1f, 255);
     auto blinkSequence = Sequence::create(fadeOut, fadeIn, nullptr);
     auto blinkForever = RepeatForever::create(blinkSequence);
     blinkForever->setTag(999);
     this->runAction(blinkForever);
+
+    // ========================================
+    // 6. 进入无敌状态（3秒）
+    // ========================================
+    _isInvincible = true;
 
     // 3秒后结束无敌
     this->scheduleOnce([this](float dt) {
