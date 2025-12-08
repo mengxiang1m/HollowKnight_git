@@ -12,8 +12,8 @@ public:
         RUNNING,
         JUMPING,
         FALLING,
-        ATTACKING,
-        DAMAGED     // ← 添加受伤状态
+        SLASHING,   // 【修改】从 ATTACKING 改为 SLASHING
+        DAMAGED
     };
 
     static Player* create(const std::string& filename);
@@ -26,7 +26,11 @@ public:
     void moveLeft();
     void moveRight();
     void stopMove();
-    void jump();
+    
+    // 【新增】可变高度跳跃系统
+    void startJump();  // 开始跳跃（按下）
+    void stopJump();   // 停止跳跃（松开）
+    
     void attack();
 
     // 【新增】受伤接口
@@ -42,7 +46,7 @@ public:
     bool isInvincible() const { return _isInvincible; }
 
 private:
-    // 物理核心
+    // 物理更新
     void updateMovementX(float dt);
     void updateCollisionX(const std::vector<cocos2d::Rect>& platforms);
     void updateMovementY(float dt);
@@ -62,16 +66,21 @@ private:
     bool _isAttacking;
     bool _isOnGround;
 
-    // 【新增】受伤相关
-    bool _isInvincible;      // 无敌状态
-    int _health;             // 生命值
-    int _maxHealth;          // 最大生命值
+    // 【新增】生命值和无敌
+    bool _isInvincible;
+    int _health;
+    int _maxHealth;
 
     // 运动参数
     cocos2d::Vec2 _velocity;
     float _moveSpeed;
     float _gravity;
     float _jumpForce;
+    
+    // 【新增】可变跳跃参数
+    bool _isJumpingAction;   // 是否正在蓄力跳跃
+    float _jumpTimer;        // 跳跃计时器
+    float _maxJumpTime;      // 最大蓄力时间
 
     // 碰撞箱
     cocos2d::Rect _localBodyRect;
@@ -84,7 +93,15 @@ private:
     cocos2d::Animation* _jumpAnim;
     cocos2d::Animation* _fallAnim;
     cocos2d::Animation* _dashAnim;
-    cocos2d::Animation* _damageAnim;  // ← 新增：受伤动画
+    cocos2d::Animation* _slashAnim;        // 【新增】攻击动画
+    cocos2d::Animation* _slashEffectAnim;  // 【新增】攻击特效动画
+    cocos2d::Animation* _damageAnim;
+
+    // 【新增】攻击特效精灵
+    cocos2d::Sprite* _slashEffectSprite;
+
+    // 【新增】动画高度补偿（用于修复不同动画帧高度不一致的问题）
+    float _damageAnimHeightOffset;
 
     // 调试
     cocos2d::DrawNode* _debugNode;

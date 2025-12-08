@@ -463,7 +463,45 @@ void Zombie::setPatrolRange(float leftBound, float rightBound)
 
 cocos2d::Rect Zombie::getHitbox() const
 {
+    // 【新增】死亡状态不返回碰撞箱
+    if (_currentState == State::DEAD)
+    {
+        return Rect::ZERO;
+    }
+    
     return this->getBoundingBox();
+}
+
+// ========================================
+// 【新增】碰到主角时的击退反应
+// ========================================
+void Zombie::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
+{
+    if (_currentState == State::DEAD || _currentState == State::DAMAGED)
+    {
+        return;
+    }
+
+    // 计算僵尸相对玩家的方向
+    Vec2 zombiePos = this->getPosition();
+    float directionX = zombiePos.x - playerPos.x;
+    
+    // 根据相对位置决定击退方向
+    float knockbackDirection = (directionX > 0) ? 1.0f : -1.0f;
+    
+    // 击退参数（僵尸更重，击退距离稍小）
+    float knockbackDistance = 30.0f;  // 比普通敌人稍小
+    float knockbackDuration = 0.2f;   // 稍慢一点
+    
+    // 计算目标位置
+    Vec2 knockbackTarget = Vec2(zombiePos.x + knockbackDirection * knockbackDistance, zombiePos.y);
+    
+    // 执行击退动作
+    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
+    auto easeOut = EaseOut::create(knockback, 2.0f);
+    this->runAction(easeOut);
+    
+    CCLOG("[Zombie] Knocked back by player collision");
 }
 
 Zombie::~Zombie()

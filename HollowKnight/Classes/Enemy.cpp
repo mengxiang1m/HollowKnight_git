@@ -227,11 +227,49 @@ void Enemy::setPatrolRange(float leftBound, float rightBound)
     CCLOG("[Enemy] Patrol range set: %.0f to %.0f", leftBound, rightBound);
 }
 
-// 【新增】获取敌人的碰撞箱
+// 【修改】获取敌人的碰撞箱 - 死亡后返回空矩形
 cocos2d::Rect Enemy::getHitbox() const
 {
+    // 【新增】死亡状态不返回碰撞箱
+    if (_currentState == State::DEAD)
+    {
+        return Rect::ZERO;
+    }
+    
     // 获取敌人精灵在世界坐标系中的包围盒
     return this->getBoundingBox();
+}
+
+// ========================================
+// 【新增】碰到主角时的击退反应
+// ========================================
+void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
+{
+    if (_currentState == State::DEAD)
+    {
+        return;
+    }
+
+    // 计算敌人相对玩家的方向
+    Vec2 enemyPos = this->getPosition();
+    float directionX = enemyPos.x - playerPos.x;
+    
+    // 根据相对位置决定击退方向
+    float knockbackDirection = (directionX > 0) ? 1.0f : -1.0f;
+    
+    // 击退参数
+    float knockbackDistance = 40.0f;  // 小幅度击退
+    float knockbackDuration = 0.15f;  // 快速击退
+    
+    // 计算目标位置
+    Vec2 knockbackTarget = Vec2(enemyPos.x + knockbackDirection * knockbackDistance, enemyPos.y);
+    
+    // 执行击退动作
+    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
+    auto easeOut = EaseOut::create(knockback, 2.0f);
+    this->runAction(easeOut);
+    
+    CCLOG("[Enemy] Knocked back by player collision");
 }
 
 Enemy::~Enemy()

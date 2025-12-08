@@ -32,6 +32,9 @@ public:
     // 【新增】获取碰撞箱（用于攻击判定）
     cocos2d::Rect getHitbox() const;
 
+    // 【新增】碰到主角时的击退反应
+    void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
+
     // 析构函数
     virtual ~Enemy();
 

@@ -52,19 +52,22 @@ bool HelloWorld::init()
         return false;
     }
 
+    // 【修改】调整放大倍数为 1.5 倍
+    float zoomScale = 1.5f;  // 从 2.0f 改为 1.5f
+    this->setScale(zoomScale);
+
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
     //////////////////////////////////////////////////////////////////////
     // 1. 背景
     //////////////////////////////////////////////////////////////////////
-    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // 稍微调暗一点，更有氛围
+    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255));
     this->addChild(bgLayer, -100);
 
     //////////////////////////////////////////////////////////////////////
     // 2. 加载地图
     //////////////////////////////////////////////////////////////////////
-    // 确保你的 Resources/maps/level1.tmx 文件存在
     auto map = TMXTiledMap::create("maps/level1.tmx");
 
     if (map == nullptr)
@@ -84,12 +87,10 @@ bool HelloWorld::init()
         // =================【调试代码开始】=================
        // 创建一个 DrawNode 用来画红框
         auto drawNode = DrawNode::create();
-        this->addChild(drawNode, 999); // Z序设高一点，保证画在最上面
+        this->addChild(drawNode, 999);
 
         for (const auto& rect : _groundRects)
         {
-            // 画红色空心矩形
-            // rect.origin 是左下角，rect.origin + rect.size 是右上角
             drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
         }
         // =================【调试代码结束】=================
@@ -115,13 +116,11 @@ bool HelloWorld::init()
         {
             zombie->setPosition(Vec2(900, 430));
             zombie->setPatrolRange(800, 1200);
-            zombie->setTag(998); // 使用不同的 Tag
+            zombie->setTag(998);
             this->addChild(zombie, 5);
             CCLOG("Zombie spawned!");
         }
     }
-
-
 
     //////////////////////////////////////////////////////////////////////
     // 4. 创建主角 (Player)
@@ -156,20 +155,23 @@ bool HelloWorld::init()
         {
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-            _player->moveRight(); // 调用 Player 里的函数
+            _isRightPressed = true;
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
-            _player->moveLeft();  // 调用 Player 里的函数
+            _isLeftPressed = true;
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
         case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
-            _player->jump();
+            _player->startJump();  // 【修改】从 jump() 改为 startJump()
             break;
 
         case EventKeyboard::KeyCode::KEY_J:
+        case EventKeyboard::KeyCode::KEY_X:  // 【新增】支持 X 键攻击
         {
             _player->attack();
 
@@ -186,7 +188,7 @@ bool HelloWorld::init()
                 }
             }
 
-            // 【新增】攻击 Zombie
+            // 攻击 Zombie
             auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
             if (zombie)
             {
@@ -209,12 +211,22 @@ bool HelloWorld::init()
         {
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+            _isLeftPressed = false;
+            updatePlayerMovement();
+            break;
+            
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-            _player->stopMove(); // 松手停止
+            _isRightPressed = false;
+            updatePlayerMovement();
+            break;
+
+        case EventKeyboard::KeyCode::KEY_Z:
+        case EventKeyboard::KeyCode::KEY_SPACE:
+            _player->stopJump();  // 【新增】松开跳跃键
             break;
         }
-        };
+    };
 
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
@@ -243,52 +255,74 @@ bool HelloWorld::init()
     return true;
 }
 
-// 每帧更新：实现相机跟随
-// HelloWorldScene.cpp
-
 void HelloWorld::update(float dt)
 {
+    if (!_player) return;
+    
     auto map = this->getChildByTag(123);
-    if (_player && map)
+    if (!map) return;
+
+    // ========================================
+    // 1. 首先更新玩家位置
+    // ========================================
+    _player->update(dt, _groundRects);
+
+    // ========================================
+    // 2. 【修复】相机立即跟随玩家
+    // ========================================
+    Vec2 playerPos = _player->getPosition();
+
+    Size visibleSize = Director::getInstance()->getVisibleSize();
+    Size mapSize = map->getContentSize();
+    float scaleValue = this->getScale();
+    
+    // 【关键修复】相机偏移需要乘以缩放因子
+    // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
+    float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
+    float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
+    
+    // 【边界限制】确保相机不超出地图边界（同样需要考虑缩放）
+    float scaledMapWidth = mapSize.width * scaleValue;
+    float scaledMapHeight = mapSize.height * scaleValue;
+    
+    float minX = -(scaledMapWidth - visibleSize.width);
+    float maxX = 0.0f;
+    float minY = -(scaledMapHeight - visibleSize.height);
+    float maxY = 0.0f;
+    
+    if (scaledMapWidth > visibleSize.width) {
+        targetX = std::max(minX, std::min(targetX, maxX));
+    } else {
+        targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
+    }
+    
+    if (scaledMapHeight > visibleSize.height) {
+        targetY = std::max(minY, std::min(targetY, maxY));
+    } else {
+        targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
+    }
+    
+    // 【直接应用】立即设置相机位置
+    this->setPosition(targetX, targetY);
+
+    // ========================================
+    // 普通敌人更新和碰撞检测
+    // ========================================
+    auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
+    if (enemy)
     {
-        // === 相机跟随逻辑 ===
-        Size visibleSize = Director::getInstance()->getVisibleSize();
-        Size mapSize = map->getContentSize();
-        Vec2 playerPos = _player->getPosition();
-
-        float screenRatioX = 0.3f;
-        float targetX = visibleSize.width * screenRatioX - playerPos.x;
-
-        float minX = -(mapSize.width - visibleSize.width);
-        float maxX = 0.0f;
-
-        if (mapSize.width >= visibleSize.width) {
-            targetX = std::max(minX, std::min(targetX, maxX));
-        }
-        else {
-            targetX = 0.0f;
-        }
-
-        float targetY = 0.0f;
-        this->setPosition(targetX, targetY);
-
-        // === 玩家物理更新 ===
-        if (_player)
-        {
-            _player->update(dt, _groundRects);
-        }
-
-        // ========================================
-        // 【修改】普通敌人碰撞检测
-        // ========================================
-        auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
-        if (enemy && _player)
+        // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+        Rect enemyBox = enemy->getHitbox();
+        
+        // 只有当敌人碰撞箱有效时才进行碰撞检测
+        if (!enemyBox.equals(Rect::ZERO))
         {
             Rect playerBox = _player->getCollisionBox();
-            Rect enemyBox = enemy->getHitbox();
 
             if (playerBox.intersectsRect(enemyBox))
             {
+                enemy->onCollideWithPlayer(playerPos);
+                
                 if (!_player->isInvincible())
                 {
                     CCLOG("⚠ Player collided with Enemy!");
@@ -296,22 +330,28 @@ void HelloWorld::update(float dt)
                 }
             }
         }
+    }
 
-        // ========================================
-        // 【新增】Zombie 敌人更新和碰撞检测
-        // ========================================
-        auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
-        if (zombie && _player)
+    // ========================================
+    // Zombie 敌人更新和碰撞检测
+    // ========================================
+    auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+    if (zombie)
+    {
+        zombie->update(dt, playerPos);
+
+        // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+        Rect zombieBox = zombie->getHitbox();
+        
+        // 只有当僵尸碰撞箱有效时才进行碰撞检测
+        if (!zombieBox.equals(Rect::ZERO))
         {
-            // 更新 Zombie AI (需要传入玩家位置)
-            zombie->update(dt, playerPos);
-
-            // 碰撞检测
             Rect playerBox = _player->getCollisionBox();
-            Rect zombieBox = zombie->getHitbox();
 
             if (playerBox.intersectsRect(zombieBox))
             {
+                zombie->onCollideWithPlayer(playerPos);
+                
                 if (!_player->isInvincible())
                 {
                     CCLOG("⚠ Player collided with Zombie!");
@@ -325,4 +365,25 @@ void HelloWorld::update(float dt)
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();
+}
+
+// 【新增】处理玩家移动的辅助函数
+void HelloWorld::updatePlayerMovement()
+{
+    if (!_player) return;
+
+    if (_isLeftPressed && _isRightPressed) {
+        // 同时按住左右键，停止移动
+        _player->stopMove();
+    }
+    else if (_isLeftPressed) {
+        _player->moveLeft();
+    }
+    else if (_isRightPressed) {
+        _player->moveRight();
+    }
+    else {
+        // 两个都没按，停止移动
+        _player->stopMove();
+    }
 }

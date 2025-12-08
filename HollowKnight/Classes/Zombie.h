@@ -35,6 +35,9 @@ public:
     // 获取碰撞箱
     cocos2d::Rect getHitbox() const;
 
+    // 【新增】碰到主角时的击退反应
+    void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
+
     // 析构函数
     virtual ~Zombie();
 
