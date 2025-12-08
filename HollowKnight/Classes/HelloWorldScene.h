@@ -26,6 +26,7 @@
 #define __HELLOWORLD_SCENE_H__
 
 #include "cocos2d.h"
+#include "Player.h"
 
 class HelloWorld : public cocos2d::Scene
 {
@@ -34,11 +35,21 @@ public:
 
     virtual bool init();
 
+    virtual void update(float dt) override;
+
     // 这是默认的关闭按钮回调，保留它方便你退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
     // 这一行宏非常重要，一定要有
     CREATE_FUNC(HelloWorld);
+
+private: // <--- 建议放在 private 下面
+    Player* _player; // <--- 修改 2：在这里声明主角指针
+
+    //存地图里所有的地面矩形框
+    std::vector<cocos2d::Rect> _groundRects;
+    // 解析地图碰撞框的辅助函数
+    void parseMapCollisions(cocos2d::TMXTiledMap* map);
 };
 
 #endif // __HELLOWORLD_SCENE_H__
