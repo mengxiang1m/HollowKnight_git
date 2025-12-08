@@ -109,8 +109,6 @@ bool HelloWorld::init()
         }
     }
 
-
-
     //////////////////////////////////////////////////////////////////////
     // 4. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
@@ -132,6 +130,7 @@ bool HelloWorld::init()
     //////////////////////////////////////////////////////////////////////
     // 5. 键盘监听器
     //////////////////////////////////////////////////////////////////////
+
     auto listener = EventListenerKeyboard::create();
 
     // --- 按下按键 ---
@@ -144,20 +143,22 @@ bool HelloWorld::init()
         {
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-            _player->moveRight(); // 调用 Player 里的函数
+            _isRightPressed = true;
+            updatePlayerMovement(); // 更新状态
             break;
 
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
-            _player->moveLeft();  // 调用 Player 里的函数
+            _isLeftPressed = true;
+            updatePlayerMovement(); // 更新状态            
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
         case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
-            _player->jump();
+            _player->startJump();
             break;
 
-        case EventKeyboard::KeyCode::KEY_J:
+        case EventKeyboard::KeyCode::KEY_X:
         {
             // 调用主角攻击动画
             _player->attack();
@@ -183,7 +184,7 @@ bool HelloWorld::init()
         }
         break;
         }
-        };
+    };
 
     // --- 松开按键 ---
     listener->onKeyReleased = [=](EventKeyboard::KeyCode code, Event* event) {
@@ -193,12 +194,21 @@ bool HelloWorld::init()
         {
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+            _isLeftPressed = false;
+            updatePlayerMovement(); // 重新计算移动方向
+            break;
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-            _player->stopMove(); // 松手停止
+            _isRightPressed = false;
+            updatePlayerMovement(); // 重新计算移动方向
+            break;
+
+        case EventKeyboard::KeyCode::KEY_Z:
+        case EventKeyboard::KeyCode::KEY_SPACE:
+            _player->stopJump();
             break;
         }
-        };
+    };
 
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
@@ -227,9 +237,31 @@ bool HelloWorld::init()
     return true;
 }
 
-// 每帧更新：实现相机跟随
-// HelloWorldScene.cpp
+void HelloWorld::updatePlayerMovement()
+{
+    if (!_player) return;
 
+    if (_isLeftPressed && _isRightPressed) {
+        // 如果同时按住，通常的处理是：
+        // 方案A：停下
+        // 方案B：后按的优先（需要额外逻辑记录时间戳）
+        // 方案C：互相抵消，维持 current velocity 或者停下
+        // 这里简单处理：优先响应最后一次操作，或者简单地设为停下
+        _player->stopMove();
+    }
+    else if (_isLeftPressed) {
+        _player->moveLeft();
+    }
+    else if (_isRightPressed) {
+        _player->moveRight();
+    }
+    else {
+        // 两个都没按，才停止
+        _player->stopMove();
+    }
+}
+
+// 每帧更新：实现相机跟随
 void HelloWorld::update(float dt)
 {
     auto map = this->getChildByTag(123);
@@ -293,8 +325,30 @@ void HelloWorld::update(float dt)
             _player->update(dt, _groundRects);
         }
     }
-}
 
+    // ========================================
+            //敌人与玩家碰撞检测
+    // ========================================
+    auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
+    if (enemy && _player)
+    {
+        // 获取双方的碰撞箱
+        Rect playerBox = _player->getCollisionBox();
+        Rect enemyBox = enemy->getHitbox();
+
+        // 判断是否碰撞
+        if (playerBox.intersectsRect(enemyBox))
+        {
+            // 只有在玩家非无敌状态时才造成伤害
+            if (!_player->isInvincible())
+            {
+                CCLOG("⚠ Player collided with Enemy! Taking damage...");
+                _player->takeDamage(1);
+            }
+        }
+    }
+}
+    
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();

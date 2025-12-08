@@ -13,7 +13,8 @@ public:
         DASHING,    // 冲刺
         JUMPING,    // 跳跃 (上升中)
         FALLING,    // 下落 (下降中)
-        ATTACKING   // 攻击
+        DAMAGED, //受攻击
+        SLASHING   // 攻击
     };
 
     static Player* create(const std::string& filename);
@@ -23,20 +24,26 @@ public:
     virtual void update(float dt, const std::vector<cocos2d::Rect>& platforms);
 
     // 状态切换入口
-    void changeState(State newState);
-
+    void changeState(State newState, bool force = false);
     // 动作控制接口 (供 HelloWorldScene 调用)
     void moveLeft();
     void moveRight();
     void stopMove();
     void attack();
-    void jump(); // 预留跳跃接口
+    void jump(); 
+    void Player::takeDamage(int damage);
 
     // 获取用于逻辑判定的碰撞箱 (世界坐标)
     cocos2d::Rect getCollisionBox() const;
 
     // 获取攻击判定框
     cocos2d::Rect getAttackHitbox() const;
+
+    // 检查是否处于无敌状态
+    bool isInvincible() const { return _isInvincible; }
+
+    void startJump(); // 按下跳跃键调用
+    void stopJump();  // 松开跳跃键调用
 
 private:
     void initAnimations();
@@ -64,8 +71,15 @@ private:
     cocos2d::Vec2 _velocity; // x: 水平速度, y: 垂直速度
     bool _isFacingRight;
     bool _isAttacking;
+	bool _isInvincible; // 是否处于无敌状态
+    bool _isJumpingAction;      // 是否正在执行跳跃动作（按住按键中）
+    float _jumpTimer;           // 已经按住跳跃键多久了
+    float _maxJumpTime;         // 允许按住加力的最大时长（比如0.35秒）
 
     // 物理参数
+        // 生命值初始化
+    int _health;
+    int _maxHealth;
     float _gravity;        // 重力
     float _jumpForce;      // 跳跃力
     bool _isOnGround;      // 是否在地面
@@ -78,11 +92,13 @@ private:
     cocos2d::Animation* _runAnim; 
     cocos2d::Animation* _jumpAnim; 
     cocos2d::Animation* _fallAnim; 
-    cocos2d::Animation* _attackAnim; // 暂时还没用到，留着
+    cocos2d::Animation*  _damageAnim; 
+    cocos2d::Animation* _slashAnim; 
+    cocos2d::Animation* _slashEffectAnim;// 刀光动画数据
 
+    cocos2d::Sprite* _slashEffectSprite; // 专门显示刀光的精灵
     // 获取固定的物理身体框 (世界坐标)
     cocos2d::Rect _localBodyRect;
-    cocos2d::Rect getBodyRect() const;
 
     // 专门用于渲染调试框的函数
     void drawDebugRects();

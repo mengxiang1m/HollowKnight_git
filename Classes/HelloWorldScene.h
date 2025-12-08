@@ -50,6 +50,12 @@ private: // <--- 建议放在 private 下面
     std::vector<cocos2d::Rect> _groundRects;
     // 解析地图碰撞框的辅助函数
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
+
+    //按键逻辑
+    bool _isLeftPressed = false;
+    bool _isRightPressed = false;
+    // 辅助函数：根据当前按键状态更新主角速度
+    void updatePlayerMovement();
 };
 
 #endif // __HELLOWORLD_SCENE_H__
