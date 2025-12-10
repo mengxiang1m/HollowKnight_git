@@ -253,8 +253,8 @@
 </data>
  </layer>
  <objectgroup id="9" name="collision">
-  <object id="4" x="8" y="892" width="3322" height="381.333"/>
-  <object id="5" x="3331.34" y="966" width="521.333" height="312"/>
+  <object id="4" x="8" y="892" width="3322" height="380"/>
+  <object id="5" x="3330" y="966" width="521.333" height="312"/>
   <object id="6" x="3852" y="894" width="2682" height="384"/>
  </objectgroup>
  <layer id="10" name="sky2" width="100" height="20">
