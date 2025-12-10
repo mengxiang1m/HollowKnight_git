@@ -37,23 +37,27 @@ public:
 
     virtual void update(float dt) override;
 
-    // 这是默认的关闭按钮回调，保留它方便你退出游戏
+    // 这是默认的关闭按钮回调，用于退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
-    // 这一行宏非常重要，一定要有
+    // 这一行宏是 cocos 必须的    
     CREATE_FUNC(HelloWorld);
 
-private: // <--- 建议放在 private 下面
-    Player* _player; // <--- 修改 2：在这里声明主角指针
+private: 
+    Player* _player; 
 
     //存地图里所有的地面矩形框
     std::vector<cocos2d::Rect> _groundRects;
+
     // 解析地图碰撞框的辅助函数
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
-    //按键逻辑
+    //键盘状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;
+	bool _isUpPressed = false;
+	bool _isDownPressed = false;
+
     // 辅助函数：根据当前按键状态更新主角速度
     void updatePlayerMovement();
 };

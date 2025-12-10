@@ -8,10 +8,10 @@ Enemy* Enemy::create(const std::string& filename)
     if (enemy && enemy->initWithFile(filename) && enemy->init())
     {
         enemy->autorelease();
-        CCLOG("✓ [Enemy::create] Succeeded with file: %s", filename.c_str());
+        CCLOG(" [Enemy::create] Succeeded with file: %s", filename.c_str());
         return enemy;
     }
-    CCLOG("✗ [Enemy::create] FAILED with file: %s", filename.c_str());
+    CCLOG("[Enemy::create] FAILED with file: %s", filename.c_str());
     CC_SAFE_DELETE(enemy);
     return nullptr;
 }
@@ -42,7 +42,7 @@ bool Enemy::init()
     // 启用每帧更新
     this->scheduleUpdate();
 
-    CCLOG("✓ [Enemy::init] Enemy initialized successfully!");
+    CCLOG(" [Enemy::init] Enemy initialized successfully!");
 
     return true;
 }
@@ -60,11 +60,11 @@ void Enemy::loadAnimations()
         {
             auto frame = testSprite->getSpriteFrame();
             walkFrames.pushBack(frame);
-            CCLOG("  ✓ Loaded frame: %s", frameName.c_str());
+            CCLOG("   Loaded frame: %s", frameName.c_str());
         }
         else
         {
-            CCLOG("  ✗ Failed to load frame: %s", frameName.c_str());
+            CCLOG("   Failed to load frame: %s", frameName.c_str());
         }
     }
 
@@ -72,11 +72,11 @@ void Enemy::loadAnimations()
     {
         _walkAnimation = Animation::createWithSpriteFrames(walkFrames, 0.15f);
         _walkAnimation->retain();
-        CCLOG("✓ Walk animation created with %d frames", (int)walkFrames.size());
+        CCLOG(" Walk animation created with %d frames", (int)walkFrames.size());
     }
     else
     {
-        CCLOG("✗ No frames loaded, animation will not play!");
+        CCLOG(" No frames loaded, animation will not play!");
         _walkAnimation = nullptr;
     }
 
@@ -90,11 +90,11 @@ void Enemy::playWalkAnimation()
         auto animate = Animate::create(_walkAnimation);
         auto repeat = RepeatForever::create(animate);
         this->runAction(repeat);
-        CCLOG("✓ Playing walk animation");
+        CCLOG(" Playing walk animation");
     }
     else
     {
-        CCLOG("✗ Cannot play animation - _walkAnimation is null");
+        CCLOG(" Cannot play animation - _walkAnimation is null");
     }
 }
 
@@ -108,7 +108,7 @@ void Enemy::playDeathAnimation()
     
     auto removeSelf = CallFunc::create([this]() {
         this->removeFromParent();
-        CCLOG("☠ Enemy removed from scene");
+        CCLOG("Enemy removed from scene");
     });
 
     auto sequence = Sequence::create(spawn, removeSelf, nullptr);
@@ -162,7 +162,7 @@ void Enemy::takeDamage(int damage)
     }
 
     _health -= damage;
-    CCLOG("💥 Enemy took %d damage! Health: %d/%d", damage, _health, _maxHealth);
+    CCLOG(" Enemy took % d damage!Health: % d / % d", damage, _health, _maxHealth);
 
     // ========================================
     // 1. 受击闪烁效果（变红 + 闪烁）
@@ -194,7 +194,7 @@ void Enemy::takeDamage(int damage)
     // ========================================
     if (_health <= 0)
     {
-        CCLOG("☠ Enemy defeated!");
+        CCLOG(" Enemy defeated!");
         changeState(State::DEAD);
     }
 }
@@ -230,8 +230,45 @@ void Enemy::setPatrolRange(float leftBound, float rightBound)
 // 【新增】获取敌人的碰撞箱
 cocos2d::Rect Enemy::getHitbox() const
 {
+    if (_currentState == State::DEAD)
+    {
+        return Rect::ZERO;
+    }
+
     // 获取敌人精灵在世界坐标系中的包围盒
     return this->getBoundingBox();
+}
+
+// ========================================
+// 碰到主角时的击退反应
+// ========================================
+void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
+{
+    if (_currentState == State::DEAD)
+    {
+        return;
+    }
+
+    // 计算敌人相对玩家的方向
+    Vec2 enemyPos = this->getPosition();
+    float directionX = enemyPos.x - playerPos.x;
+
+    // 根据相对位置决定击退方向
+    float knockbackDirection = (directionX > 0) ? 1.0f : -1.0f;
+
+    // 击退参数
+    float knockbackDistance = 40.0f;  // 小幅度击退
+    float knockbackDuration = 0.15f;  // 快速击退
+
+    // 计算目标位置
+    Vec2 knockbackTarget = Vec2(enemyPos.x + knockbackDirection * knockbackDistance, enemyPos.y);
+
+    // 执行击退动作
+    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
+    auto easeOut = EaseOut::create(knockback, 2.0f);
+    this->runAction(easeOut);
+
+    CCLOG("[Enemy] Knocked back by player collision");
 }
 
 Enemy::~Enemy()

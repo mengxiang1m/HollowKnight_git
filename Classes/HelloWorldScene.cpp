@@ -1,6 +1,7 @@
 ﻿#include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
+#include "Zombie.h"
 
 USING_NS_CC;
 
@@ -51,6 +52,10 @@ bool HelloWorld::init()
         return false;
     }
 
+    // 调整放大倍数为 1.5 倍
+    float zoomScale = 1.5f;  
+    this->setScale(zoomScale);
+
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
@@ -97,6 +102,7 @@ bool HelloWorld::init()
         // 3. 创建敌人
         //////////////////////////////////////////////////////////////////////
         auto enemy = Enemy::create("enemies/enemy_walk_1.png");
+
         if (enemy)
         {
             // 放在地图的一个平台上
@@ -107,18 +113,27 @@ bool HelloWorld::init()
 
             CCLOG("Enemy spawned!");
         }
-    }
 
+        // 创建 Zombie 敌人
+        auto zombie = Zombie::create("zombie/walk/walk_1.png");
+        if (zombie)
+        {
+            zombie->setPosition(Vec2(900, 430));
+            zombie->setPatrolRange(800, 1200);
+            zombie->setTag(998);
+            this->addChild(zombie, 5);
+            CCLOG("Zombie spawned!");
+        }
+    }
     //////////////////////////////////////////////////////////////////////
     // 4. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
-    // 文件名如果找不到会用默认的，确保 Knight/idle_1.png 存在
     _player = Player::create("Knight/idle/idle_1.png");
 
     if (_player)
     {
-        // 设置出生点 (根据你的地图调整)
-        _player->setPosition(Vec2(400, 730));
+        // 设置出生点 (根据地图调整)
+        _player->setPosition(Vec2(400, 1300));
         this->addChild(_player, 10); // Z序 10，保证在最前面
         CCLOG("Player created successfully!");
     }
@@ -153,18 +168,30 @@ bool HelloWorld::init()
             updatePlayerMovement(); // 更新状态            
             break;
 
-        case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
-            _player->startJump();
+        case EventKeyboard::KeyCode::KEY_W:
+        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+            _isUpPressed = true;
+            updatePlayerMovement(); // 更新状态
             break;
 
+        case EventKeyboard::KeyCode::KEY_S:
+        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+            _isDownPressed = true;
+            updatePlayerMovement(); // 更新状态
+            break;
+
+        case EventKeyboard::KeyCode::KEY_Z:
+        case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
+            _player->setJumpPressed(true);
+            break;
+
+        case EventKeyboard::KeyCode::KEY_J:
         case EventKeyboard::KeyCode::KEY_X:
         {
             // 调用主角攻击动画
-            _player->attack();
-
+            _player->setAttackPressed(true);
             // ========================================
-            // 攻击判定逻辑 (移植到这里)
+            // 攻击判定逻辑 
             // ========================================
             // 获取主角实时的攻击判定框
             Rect attackBox = _player->getAttackHitbox();
@@ -177,13 +204,24 @@ bool HelloWorld::init()
                 {
                     CCLOG("HIT! Player hit the Enemy!");
                     enemy->takeDamage(1);
-
-                    // 可选：添加一点打击特效或震屏
                 }
             }
+
+            // 攻击 Zombie
+            auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+            if (zombie)
+            {
+                if (attackBox.intersectsRect(zombie->getHitbox()))
+                {
+                    CCLOG("HIT! Player hit the Zombie!");
+                    zombie->takeDamage(1);
+                }
+            }
+
         }
         break;
         }
+
     };
 
     // --- 松开按键 ---
@@ -202,10 +240,25 @@ bool HelloWorld::init()
             _isRightPressed = false;
             updatePlayerMovement(); // 重新计算移动方向
             break;
+        case EventKeyboard::KeyCode::KEY_W:
+        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+            _isUpPressed = false;
+            updatePlayerMovement(); // 重新计算移动方向
+            break;
+        case EventKeyboard::KeyCode::KEY_S:
+        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+            _isDownPressed = false;
+            updatePlayerMovement(); // 重新计算移动方向
+            break;
 
         case EventKeyboard::KeyCode::KEY_Z:
         case EventKeyboard::KeyCode::KEY_SPACE:
-            _player->stopJump();
+            _player->setJumpPressed(false);
+            break;
+
+		case EventKeyboard::KeyCode::KEY_J:
+        case EventKeyboard::KeyCode::KEY_X:
+            _player->setAttackPressed(false);
             break;
         }
     };
@@ -241,24 +294,21 @@ void HelloWorld::updatePlayerMovement()
 {
     if (!_player) return;
 
-    if (_isLeftPressed && _isRightPressed) {
-        // 如果同时按住，通常的处理是：
-        // 方案A：停下
-        // 方案B：后按的优先（需要额外逻辑记录时间戳）
-        // 方案C：互相抵消，维持 current velocity 或者停下
-        // 这里简单处理：优先响应最后一次操作，或者简单地设为停下
-        _player->stopMove();
-    }
-    else if (_isLeftPressed) {
-        _player->moveLeft();
-    }
-    else if (_isRightPressed) {
-        _player->moveRight();
-    }
-    else {
-        // 两个都没按，才停止
-        _player->stopMove();
-    }
+    // 1. 计算输入方向
+    // 左键(-1) + 右键(+1)
+    // 如果同时按住，结果为 0 (停)；只按左是 -1；只按右是 1
+    int dirX = 0,dirY=0;
+    if (_isLeftPressed)  dirX -= 1;
+    if (_isRightPressed) dirX += 1;
+
+    if (_isUpPressed) dirY+= 1;
+    if (_isDownPressed) dirY -= 1;
+ 
+    // 2. 将“意图”传给 Player
+    // Player 内部的状态机 (StateRun/StateIdle) 会自动读取这个值
+    // 如果是 0，状态机自动切回 Idle；如果是 -1/1，状态机自动切为 Run 并移动
+    _player->setInputDirectionX(dirX);
+    _player->setInputDirectionY(dirY);
 }
 
 // 每帧更新：实现相机跟随
@@ -267,88 +317,119 @@ void HelloWorld::update(float dt)
     auto map = this->getChildByTag(123);
     if (_player && map)
     {
-        Size visibleSize = Director::getInstance()->getVisibleSize();
-        Size mapSize = map->getContentSize();
+        if (!_player) return;
+
+        auto map = this->getChildByTag(123);
+        if (!map) return;
+
+        // ========================================
+       // 1. 首先更新玩家位置
+       // ========================================
+        _player->update(dt, _groundRects);
+
+        // ========================================
+    // 2. 【修复】相机立即跟随玩家
+    // ========================================
         Vec2 playerPos = _player->getPosition();
 
-        // =============================================================
-        // X 轴逻辑：跟随主角，但有偏移和边界限制
-        // =============================================================
+        Size visibleSize = Director::getInstance()->getVisibleSize();
+        Size mapSize = map->getContentSize();
+        float scaleValue = this->getScale();
 
-        // 让主角处于屏幕偏左的位置 ( 30% 处)
-        // 这样玩家往右跑时，能看到前方更多的地图，体验更好
-        float screenRatioX = 0.3f;
-        float targetX = visibleSize.width * screenRatioX - playerPos.x;
+        // 【关键修复】相机偏移需要乘以缩放因子
+      // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
+        float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
+        float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
 
-        // 计算 X 轴的边界（防止黑边）
-        float minX = -(mapSize.width - visibleSize.width);
+        // 【边界限制】确保相机不超出地图边界（同样需要考虑缩放）
+        float scaledMapWidth = mapSize.width * scaleValue;
+        float scaledMapHeight = mapSize.height * scaleValue;
+
+        float minX = -(scaledMapWidth - visibleSize.width);
         float maxX = 0.0f;
+        float minY = -(scaledMapHeight - visibleSize.height);
+        float maxY = 0.0f;
 
-        // 执行 X 轴边界限制
-        if (mapSize.width >= visibleSize.width) {
+        if (scaledMapWidth > visibleSize.width) {
             targetX = std::max(minX, std::min(targetX, maxX));
         }
         else {
-            targetX = 0.0f;
+            targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
         }
 
-        // =============================================================
-        // Y 轴逻辑：【改动 2】完全不跟随跳跃
-        // =============================================================
-
-        // 直接锁定 Y 轴为 0 (或者根据地图高度锁在底部)
-        // 这样主角跳跃时，背景不动，只有主角动
-        float targetY = 0.0f;
-
-        // 如果你想让地图稍微上下修正一下（防止地图比屏幕矮时出现黑边）
-        // 可以保留这个基础的边界检查，但不用 playerPos.y 参与计算
-        float minY = -(mapSize.height - visibleSize.height);
-        float maxY = 0.0f;
-
-        // 确保 Y 轴贴底显示
-        if (mapSize.height >= visibleSize.height) {
-            // 这里我们强制把 targetY 设为 0 或者 minY，看你想看地图的哪部分
-            // 通常设为 0 表示看地图最底部
+        if (scaledMapHeight > visibleSize.height) {
             targetY = std::max(minY, std::min(targetY, maxY));
         }
         else {
-            targetY = 0.0f;
+            targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
         }
 
-        // =============================================================
-        // 应用位置
-        // =============================================================
+        // 【直接应用】立即设置相机位置
         this->setPosition(targetX, targetY);
 
-        if (_player)
+        // ========================================
+        // 普通敌人更新和碰撞检测
+        // ========================================
+        auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
+        if (enemy)
         {
-            _player->update(dt, _groundRects);
-        }
-    }
+            // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+            Rect enemyBox = enemy->getHitbox();
 
-    // ========================================
-            //敌人与玩家碰撞检测
-    // ========================================
-    auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
-    if (enemy && _player)
-    {
-        // 获取双方的碰撞箱
-        Rect playerBox = _player->getCollisionBox();
-        Rect enemyBox = enemy->getHitbox();
-
-        // 判断是否碰撞
-        if (playerBox.intersectsRect(enemyBox))
-        {
-            // 只有在玩家非无敌状态时才造成伤害
-            if (!_player->isInvincible())
+            // 只有当敌人碰撞箱有效时才进行碰撞检测
+            if (!enemyBox.equals(Rect::ZERO))
             {
-                CCLOG("⚠ Player collided with Enemy! Taking damage...");
-                _player->takeDamage(1);
+                Rect playerBox = _player->getCollisionBox();
+
+                if (playerBox.intersectsRect(enemyBox))
+                {
+                    enemy->onCollideWithPlayer(playerPos);
+
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG(" Player collided with Enemy!");
+                        _player->takeDamage(1);
+
+                        if (_player->getAttackDir() == -1)
+                        {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ========================================
+        // Zombie 敌人更新和碰撞检测
+        // ========================================
+        auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+        if (zombie)
+        {
+            zombie->update(dt, playerPos);
+
+            // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+            Rect zombieBox = zombie->getHitbox();
+
+            // 只有当僵尸碰撞箱有效时才进行碰撞检测
+            if (!zombieBox.equals(Rect::ZERO))
+            {
+                Rect playerBox = _player->getCollisionBox();
+
+                if (playerBox.intersectsRect(zombieBox))
+                {
+                    zombie->onCollideWithPlayer(playerPos);
+
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG(" Player collided with Zombie!");
+                        _player->takeDamage(1);
+                    }
+                }
             }
         }
     }
 }
-    
+
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();
