@@ -61,7 +61,7 @@ private:
 
     // 移动相关
     float _moveSpeed;           // 巡逻速度
-    float _attackSpeed;         // 攻击冲锋速度
+    float _attackSpeed;         // 攻击冲锋速度,,,,,,,,,,
     bool _movingRight;          // 是否向右移动
     float _patrolLeftBound;     // 巡逻左边界
     float _patrolRightBound;    // 巡逻右边界
@@ -75,6 +75,9 @@ private:
     int _health;                // 生命值
     int _maxHealth;             // 最大生命值
     bool _isFacingRight;        // 面向方向
+
+    // 【修复】受击无敌时间
+    bool _isInvincible = false;
 
     // 动画缓存
     cocos2d::Animation* _walkAnimation;

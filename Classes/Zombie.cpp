@@ -351,11 +351,14 @@ void Zombie::updateAttackBehavior(float dt, const cocos2d::Vec2& playerPos)
 
 void Zombie::takeDamage(int damage)
 {
-    if (_currentState == State::DEAD || _currentState == State::DAMAGED)
+    // 1. 如果已经死亡 或 处于无敌状态，直接返回
+    if (_currentState == State::DEAD || _currentState == State::DAMAGED || _isInvincible)
     {
         return;
     }
 
+    // 2. 开启无敌
+    _isInvincible = true;
     _health -= damage;
     CCLOG("?? Zombie took %d damage! Health: %d/%d", damage, _health, _maxHealth);
 
@@ -419,6 +422,11 @@ void Zombie::takeDamage(int damage)
         CCLOG("? Zombie defeated!");
         changeState(State::DEAD);
     }
+
+    // 3. 设置定时器关闭无敌 (0.2秒后恢复)
+    this->scheduleOnce([this](float dt) {
+        _isInvincible = false;
+        }, 0.2f, "invincible_cooldown");
 }
 
 void Zombie::changeState(State newState)

@@ -190,34 +190,6 @@ bool HelloWorld::init()
         {
             // 调用主角攻击动画
             _player->setAttackPressed(true);
-            // ========================================
-            // 攻击判定逻辑 
-            // ========================================
-            // 获取主角实时的攻击判定框
-            Rect attackBox = _player->getAttackHitbox();
-
-            // 找敌人
-            auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
-            if (enemy)
-            {
-                if (attackBox.intersectsRect(enemy->getHitbox()))
-                {
-                    CCLOG("HIT! Player hit the Enemy!");
-                    enemy->takeDamage(1);
-                }
-            }
-
-            // 攻击 Zombie
-            auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
-            if (zombie)
-            {
-                if (attackBox.intersectsRect(zombie->getHitbox()))
-                {
-                    CCLOG("HIT! Player hit the Zombie!");
-                    zombie->takeDamage(1);
-                }
-            }
-
         }
         break;
         }
@@ -328,7 +300,7 @@ void HelloWorld::update(float dt)
         _player->update(dt, _groundRects);
 
         // ========================================
-    // 2. 【修复】相机立即跟随玩家
+    // 2. 相机立即跟随玩家
     // ========================================
         Vec2 playerPos = _player->getPosition();
 
@@ -336,7 +308,7 @@ void HelloWorld::update(float dt)
         Size mapSize = map->getContentSize();
         float scaleValue = this->getScale();
 
-        // 【关键修复】相机偏移需要乘以缩放因子
+        // 相机偏移需要乘以缩放因子
       // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
         float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
         float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
@@ -368,31 +340,46 @@ void HelloWorld::update(float dt)
         this->setPosition(targetX, targetY);
 
         // ========================================
-        // 普通敌人更新和碰撞检测
+		// 3. 【修复】修改 Enemy 碰撞检测逻辑
         // ========================================
         auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
         if (enemy)
         {
-            // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+            // 获取碰撞箱，如果为空则跳过碰撞检测
             Rect enemyBox = enemy->getHitbox();
 
             // 只有当敌人碰撞箱有效时才进行碰撞检测
             if (!enemyBox.equals(Rect::ZERO))
             {
-                Rect playerBox = _player->getCollisionBox();
-
-                if (playerBox.intersectsRect(enemyBox))
+                bool isEnemyHit = false;
+				// 1.【修复】首先检测攻击是否命中敌人
+                if (_player->isAttackPressed())
                 {
-                    enemy->onCollideWithPlayer(playerPos);
+                    Rect attackBox = _player->getAttackHitbox();
 
-                    if (!_player->isInvincible())
+                    if (attackBox.intersectsRect(enemyBox))
                     {
-                        CCLOG(" Player collided with Enemy!");
-                        _player->takeDamage(1);
+                        CCLOG("HIT! Player hit the Enemy!");
+                        enemy->takeDamage(1);
+						isEnemyHit = true;  // 标记敌人被击中
 
-                        if (_player->getAttackDir() == -1)
-                        {
+						// 如果敌人被击中，玩家执行 pogo 跳跃
+                        if (_player->getAttackDir() == -1) {
                             _player->pogoJump();
+                        }
+                    }
+                }
+				// 2.【修复】检测敌人是否与玩家碰撞
+                if (!isEnemyHit) {  // 只有当敌人未被攻击命中时才检测碰撞
+                    Rect playerBox = _player->getCollisionBox();
+
+                    if (playerBox.intersectsRect(enemyBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG(" Player collided with Enemy!");
+                            _player->takeDamage(1);
+							enemy->onCollideWithPlayer(_player->getPosition()); // 让敌人反应碰撞
                         }
                     }
                 }
@@ -400,29 +387,45 @@ void HelloWorld::update(float dt)
         }
 
         // ========================================
-        // Zombie 敌人更新和碰撞检测
+        // 4.【修复】Zombie 敌人更新和碰撞检测
         // ========================================
         auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
         if (zombie)
         {
             zombie->update(dt, playerPos);
-
-            // 【修复】先获取碰撞箱，如果为空则跳过碰撞检测
+            // 先获取碰撞箱，如果为空则跳过碰撞检测
             Rect zombieBox = zombie->getHitbox();
 
-            // 只有当僵尸碰撞箱有效时才进行碰撞检测
             if (!zombieBox.equals(Rect::ZERO))
             {
-                Rect playerBox = _player->getCollisionBox();
-
-                if (playerBox.intersectsRect(zombieBox))
+				bool isZombieHit = false;
+                if (_player->isAttackPressed())
                 {
-                    zombie->onCollideWithPlayer(playerPos);
-
-                    if (!_player->isInvincible())
+                    Rect attackBox = _player->getAttackHitbox();
+                    if (attackBox.intersectsRect(zombieBox))
                     {
-                        CCLOG(" Player collided with Zombie!");
-                        _player->takeDamage(1);
+                        CCLOG("HIT! Player hit the Zombie!");
+                        zombie->takeDamage(1);
+                        isZombieHit = true;
+
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+
+                // B. Body Collision
+                if (!isZombieHit)
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(zombieBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player collided with Zombie body!");
+                            _player->takeDamage(1);
+                            zombie->onCollideWithPlayer(_player->getPosition());
+                        }
                     }
                 }
             }

@@ -185,12 +185,12 @@ void Player::attack()
         if (_currentAttackDir == 1) // 上劈
         {
             effectAnimName = "slash_up_effect"; // 播放专门的上劈特效
-            _slashEffectSprite->setPosition(centerPos + Vec2(0, 80)); // 向上偏移
+            _slashEffectSprite->setPosition(centerPos + Vec2(50, 80)); // 向上偏移
         }
         else if (_currentAttackDir == -1) // 下劈
         {
             effectAnimName = "slash_down_effect"; // 播放专门的下劈特效
-            _slashEffectSprite->setPosition(centerPos + Vec2(0, -70)); // 向下偏移
+            _slashEffectSprite->setPosition(centerPos + Vec2(50, -70)); // 向下偏移
         }
         else
         {
@@ -241,8 +241,9 @@ void Player::takeDamage(int damage)
 
 void Player::pogoJump()
 {
+    _velocity.y = 0;
     // 给一个向上的瞬时速度 (类似跳跃)
-    _velocity.y = Config::Player::JUMP_FORCE_BASE * 0.8f;
+    _velocity.y = Config::Player::JUMP_FORCE_BASE*1.2f;
     _isOnGround = false;
 
     // 如果想要允许下劈后刷新二段跳/冲刺，可以在这里重置相关变量

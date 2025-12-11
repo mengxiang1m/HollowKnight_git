@@ -152,18 +152,17 @@ void Enemy::update(float dt)
 }
 
 // ======================================================================
-// 【新增/修改】受击处理 - 包含击退效果
+// 受击处理 - 包含击退效果
 // ======================================================================
 void Enemy::takeDamage(int damage)
 {
-    if (_currentState == State::DEAD)
-    {
-        return;  // 已经死亡，不再受击
-    }
+    // 【修复】如果已经死亡 或 处于无敌状态，直接返回
+    if (_currentState == State::DEAD || _isInvincible) return;
 
     _health -= damage;
     CCLOG(" Enemy took % d damage!Health: % d / % d", damage, _health, _maxHealth);
-
+    // 开启无敌
+    _isInvincible = true;
     // ========================================
     // 1. 受击闪烁效果（变红 + 闪烁）
     // ========================================
@@ -197,6 +196,11 @@ void Enemy::takeDamage(int damage)
         CCLOG(" Enemy defeated!");
         changeState(State::DEAD);
     }
+
+	// 【修复】设置无敌持续时间
+    this->scheduleOnce([this](float dt) {
+        _isInvincible = false;
+        }, 0.2f, "invincible_cooldown");
 }
 
 void Enemy::changeState(State newState)

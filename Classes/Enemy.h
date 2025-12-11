@@ -58,6 +58,9 @@ private:
     int _health;                // 生命值
     int _maxHealth;             // 最大生命值
 
+	// 【修复】受击无敌时间
+    bool _isInvincible = false;
+
     // 动画缓存
     cocos2d::Animation* _walkAnimation;
     cocos2d::Animation* _deathAnimation;
