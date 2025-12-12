@@ -1,6 +1,6 @@
 #ifndef __PLAYER_H__
 #define __PLAYER_H__
-
+#include <functional> 
 #include "cocos2d.h"
 
 // 【关键】前向声明
@@ -50,6 +50,8 @@ public:
     float getVelocityY() const { return _velocity.y; }
     float getVelocityX() const { return _velocity.x; }
     bool isInvincible() const { return _isInvincible; }
+    int getHealth() const { return _health; }
+    int getMaxHealth() const { return _maxHealth; }
     // ==========================================
     // 4. 行为执行接口 (Action Interface) - 供 State 类调用
     // ==========================================
@@ -80,6 +82,13 @@ public:
     // ==========================================
     cocos2d::Rect getCollisionBox() const;
     cocos2d::Rect getAttackHitbox() const;
+
+    // 【新增】定义一个回调函数类型
+    // 参数1: 当前血量, 参数2: 最大血量
+    typedef std::function<void(int, int)> HealthChangeCallback;
+
+    // 【新增】设置回调的方法
+    void setOnHealthChanged(HealthChangeCallback callback) { _onHealthChanged = callback; }
 
 private:
     // ==========================================
@@ -132,6 +141,9 @@ private:
     void updateMovementY(float dt);
     void updateCollisionY(const std::vector<cocos2d::Rect>& platforms);
     void drawDebugRects();
+
+    // 【新增】保存回调函数
+    HealthChangeCallback _onHealthChanged = nullptr;
 };
 
 #endif // __PLAYER_H__

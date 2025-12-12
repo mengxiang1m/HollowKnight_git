@@ -97,8 +97,6 @@ void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
     updateMovementY(dt);
     updateCollisionY(platforms);
 
-    // 3. 【调试层】
-    drawDebugRects();
 }
 
 // =================================================================
@@ -217,6 +215,7 @@ void Player::takeDamage(int damage)
     if (_isInvincible) return;
 
     _health -= damage;
+    if (_health < 0) _health = 0;
     CCLOG("Player took damage! Health: %d", _health);
 
     changeState(new StateDamaged());
@@ -225,6 +224,11 @@ void Player::takeDamage(int damage)
     float direction = _isFacingRight ? -1.0f : 1.0f;
     _velocity.x = direction * 200.0f;
     _velocity.y = 300.0f;
+
+    // 【新增】通知 UI 更新
+    if (_onHealthChanged) {
+        _onHealthChanged(_health, _maxHealth);
+    }
 
     // 开启无敌
     _isInvincible = true;
@@ -245,9 +249,6 @@ void Player::pogoJump()
     // 给一个向上的瞬时速度 (类似跳跃)
     _velocity.y = Config::Player::JUMP_FORCE_BASE*1.2f;
     _isOnGround = false;
-
-    // 如果想要允许下劈后刷新二段跳/冲刺，可以在这里重置相关变量
-    // resetJumpCount(); 
 }
 // =================================================================
 //  5. 动画系统

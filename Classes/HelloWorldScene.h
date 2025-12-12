@@ -33,6 +33,9 @@ class HelloWorld : public cocos2d::Scene
 public:
     static cocos2d::Scene* createScene();
 
+    // 【新增】游戏容器层 (所有移动的东西)
+    cocos2d::Layer* _gameLayer;
+
     virtual bool init();
 
     virtual void update(float dt) override;

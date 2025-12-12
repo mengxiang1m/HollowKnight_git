@@ -2,6 +2,7 @@
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
 #include "Zombie.h"
+#include "HUDLayer.h"
 
 USING_NS_CC;
 
@@ -52,18 +53,27 @@ bool HelloWorld::init()
         return false;
     }
 
-    // 调整放大倍数为 1.5 倍
-    float zoomScale = 1.5f;  
-    this->setScale(zoomScale);
-
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
+
+    // ============================================================
+    // 1. 【核心修改】创建游戏容器层
+    // ============================================================
+    _gameLayer = Layer::create();
+
+    // 把缩放应用在 GameLayer 上，而不是整个 Scene
+    // 这样 UI 就不会被放大，保持高清！
+    float zoomScale = 1.5f;
+    _gameLayer->setScale(zoomScale);
+
+    // 游戏层 Z序低 (1)，放在下面
+    this->addChild(_gameLayer, 1);
 
     //////////////////////////////////////////////////////////////////////
     // 1. 背景
     //////////////////////////////////////////////////////////////////////
     auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // 稍微调暗一点，更有氛围
-    this->addChild(bgLayer, -100);
+    _gameLayer->addChild(bgLayer, -100);
 
     //////////////////////////////////////////////////////////////////////
     // 2. 加载地图
@@ -80,7 +90,7 @@ bool HelloWorld::init()
         map->setAnchorPoint(Vec2(0, 0));
         map->setPosition(Vec2(0, 0));
         map->setTag(123);
-        this->addChild(map, -99);
+        _gameLayer->addChild(map, -99);
 
         //解析碰撞数据
         this->parseMapCollisions(map);
@@ -88,7 +98,7 @@ bool HelloWorld::init()
         // =================【调试代码开始】=================
        // 创建一个 DrawNode 用来画红框
         auto drawNode = DrawNode::create();
-        this->addChild(drawNode, 999); // Z序设高一点，保证画在最上面
+        _gameLayer->addChild(drawNode, 999); // Z序设高一点，保证画在最上面
 
         for (const auto& rect : _groundRects)
         {
@@ -109,8 +119,8 @@ bool HelloWorld::init()
             enemy->setPosition(Vec2(600, 430));
             enemy->setPatrolRange(500, 800);
             enemy->setTag(999);
-            this->addChild(enemy, 5); // Z序 5
-
+            // 【改】加到 _gameLayer
+            _gameLayer->addChild(enemy, 5);
             CCLOG("Enemy spawned!");
         }
 
@@ -118,13 +128,14 @@ bool HelloWorld::init()
         auto zombie = Zombie::create("zombie/walk/walk_1.png");
         if (zombie)
         {
-            zombie->setPosition(Vec2(900, 430));
+            zombie->setPosition(Vec2(1900, 430));
             zombie->setPatrolRange(800, 1200);
             zombie->setTag(998);
-            this->addChild(zombie, 5);
+            _gameLayer->addChild(zombie, 5);
             CCLOG("Zombie spawned!");
         }
     }
+
     //////////////////////////////////////////////////////////////////////
     // 4. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
@@ -134,13 +145,34 @@ bool HelloWorld::init()
     {
         // 设置出生点 (根据地图调整)
         _player->setPosition(Vec2(400, 1300));
-        this->addChild(_player, 10); // Z序 10，保证在最前面
+        _gameLayer->addChild(_player, 10);
         CCLOG("Player created successfully!");
     }
     else
     {
         CCLOG("Error: Failed to create Player!");
     }
+
+    // ========================================
+    // 【新增】创建 UI 层
+    // ========================================
+    auto hudLayer = HUDLayer::createLayer();
+    hudLayer->setTag(900);
+
+    // Z序设为 100，保证永远盖在地图和主角上面
+    this->addChild(hudLayer, 100);
+
+    // ========================================
+    // 【关键】连接 Player 和 HUD
+    // ========================================
+    // 这是一个 Lambda 表达式，当 Player 血量变了，就会执行大括号里的代码
+    _player->setOnHealthChanged([=](int hp, int maxHp) {
+        hudLayer->updateHealth(hp, maxHp);
+        });
+
+    // 手动触发一次，让 UI 初始化显示满血
+    // 注意：这里 _player 还没读 Config，确保 _health 已经有值了
+    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth()); // 你需要在 Player.h 加 getter
 
     //////////////////////////////////////////////////////////////////////
     // 5. 键盘监听器
@@ -286,12 +318,12 @@ void HelloWorld::updatePlayerMovement()
 // 每帧更新：实现相机跟随
 void HelloWorld::update(float dt)
 {
-    auto map = this->getChildByTag(123);
+    auto map = _gameLayer->getChildByTag(123);
     if (_player && map)
     {
-        if (!_player) return;
+        if (!_player || !_gameLayer) return;
 
-        auto map = this->getChildByTag(123);
+        auto map = _gameLayer->getChildByTag(123);
         if (!map) return;
 
         // ========================================
@@ -306,7 +338,8 @@ void HelloWorld::update(float dt)
 
         Size visibleSize = Director::getInstance()->getVisibleSize();
         Size mapSize = map->getContentSize();
-        float scaleValue = this->getScale();
+        // 获取缩放比例 (现在是 _gameLayer 在缩放)
+        float scaleValue = _gameLayer->getScale();
 
         // 相机偏移需要乘以缩放因子
       // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
@@ -336,13 +369,15 @@ void HelloWorld::update(float dt)
             targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
         }
 
-        // 【直接应用】立即设置相机位置
-        this->setPosition(targetX, targetY);
+        // ============================================================
+        // 【修改】只移动游戏层
+        // ============================================================
+        _gameLayer->setPosition(targetX, targetY);
 
         // ========================================
 		// 3. 【修复】修改 Enemy 碰撞检测逻辑
         // ========================================
-        auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
+        auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
         if (enemy)
         {
             // 获取碰撞箱，如果为空则跳过碰撞检测
@@ -389,7 +424,7 @@ void HelloWorld::update(float dt)
         // ========================================
         // 4.【修复】Zombie 敌人更新和碰撞检测
         // ========================================
-        auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
+        auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
         if (zombie)
         {
             zombie->update(dt, playerPos);
