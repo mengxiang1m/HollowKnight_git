@@ -1,5 +1,5 @@
 #include "HUDLayer.h"
-#include "config.h" // 假设你有 Config，没有的话直接写数字
+#include "config.h" 
 
 USING_NS_CC;
 
@@ -20,75 +20,125 @@ bool HUDLayer::init()
 
     // 1. 创建容器
     _healthBarContainer = Node::create();
-    // 设置在屏幕左上角 (空洞骑士风格)
-    // 注意：Cocos坐标系原点在左下角
-    _healthBarContainer->setPosition(Vec2(50, visibleSize.height - 50));
-    this->addChild(_healthBarContainer);
 
-    // 2. 初始时不创建具体的血，等 Player 告诉我们有多少血再创建
-    // 或者在这里先初始化最大血量的空壳
+    float scale = 2.5f; 
+    _healthBarContainer->setScale(scale);
+
+    // 设置在屏幕左上角
+    _healthBarContainer->setPosition(Vec2(100, visibleSize.height - 180));
+    this->addChild(_healthBarContainer);
 
     return true;
 }
 
 void HUDLayer::updateHealth(int currentHp, int maxHp)
 {
-    // 如果是第一次调用（或者最大血量变了），重新生成所有图标
+    // --------------------------------------------------------
+     // A. 初始化血条 (如果数量不对，重新创建)
+     // --------------------------------------------------------
     if (_heartSprites.size() != maxHp)
     {
-        // 清理旧的
         _healthBarContainer->removeAllChildren();
         _heartSprites.clear();
 
         for (int i = 0; i < maxHp; i++)
         {
-            // 这里用 Sprite::create 加载图片
-            // 如果你还没图，先用 DrawNode 画个圆代替
-            /* auto heart = Sprite::create("ui/heart_full.png");
-            */
+            // 默认创建满血图
+            auto heart = Sprite::create("HUDanim/full/full.png");
 
-            // --- 临时替代方案：用 DrawNode 画圆 ---
-            auto heart = Sprite::create(); // 空精灵做容器
-            auto draw = DrawNode::create();
-            draw->drawSolidCircle(Vec2::ZERO, 15, 0, 20, Color4F::WHITE); // 白色代表满血
-            draw->setName("drawing"); // 给个名字方便查找
-            heart->addChild(draw);
-            // ------------------------------------
+            // 间距调整
+            heart->setPosition(Vec2(i * 50.0f, 0));
 
-            // 排列位置：横向排列，间距 40
-            heart->setPosition(Vec2(i * 40.0f, 0));
+            // 【关键】设置初始 Tag 为 1 (满血状态)
+            heart->setTag(1);
+
             _healthBarContainer->addChild(heart);
             _heartSprites.push_back(heart);
         }
     }
 
-    // 更新状态 (满血显示亮色/满图，扣血显示暗色/空图)
+    // --------------------------------------------------------
+    // B. 更新状态
+    // --------------------------------------------------------
     for (int i = 0; i < _heartSprites.size(); i++)
     {
         auto heart = _heartSprites[i];
+        int currentTag = heart->getTag(); // 获取当前记录的状态
 
-        // 获取画图节点 (如果你用了图片，直接更换 Texture 即可)
-        auto draw = dynamic_cast<DrawNode*>(heart->getChildByName("drawing"));
-
+        // 情况 1: 这一格应该有血
         if (i < currentHp)
         {
-            // 这格血是有的 -> 显示满血状态
-            // heart->setTexture("ui/heart_full.png"); 
-            if (draw) {
-                draw->clear();
-                draw->drawSolidCircle(Vec2::ZERO, 15, 0, 20, Color4F::WHITE); // 亮白
+            // 如果之前不是满血，或者是第一次刷新
+            if (currentTag != 1)
+            {
+                heart->setTexture("HUDanim/full/full.png");
+                heart->setOpacity(255);
+                heart->setTag(1); // 标记为满血
             }
-            heart->setOpacity(255);
         }
+        // 情况 2: 这一格应该没血
         else
         {
-            // 这格血没了 -> 显示空血状态
-            // heart->setTexture("ui/heart_empty.png");
-            if (draw) {
-                draw->clear();
-                draw->drawCircle(Vec2::ZERO, 15, 0, 20, false, Color4F::GRAY); // 空心灰圈
+            // 检查：它之前是否满血
+            // 如果 Tag 是 1，说明它刚刚还在，现在没了 ,触发破碎
+            if (currentTag == 1)
+            {
+                // 1. 播放破碎动画 (盖在上面)
+                playBreakAnimation(heart);
+
+                // 2. 自身立刻切换为空血槽 (作为背景垫在下面)
+                heart->setTexture("HUDanim/empty/empty.png");
+
+                // 3. 标记为空血
+                heart->setTag(0);
             }
-            heart->setOpacity(100); // 变暗
+            // 如果 Tag 已经是 0，说明早就碎了，不需要再播动画
+            else
+            {
+                // 确保显示空血图 (防止切图切错了)
+                if (heart->getTexture() == nullptr ||
+                    heart->getTexture()->getPath() != "HUDanim/empty/empty.png")
+                {
+                    heart->setTexture("HUDanim/empty/empty.png");
+                }
+            }
         }
     }
+}
+
+void HUDLayer::playBreakAnimation(Sprite* heartSprite)
+{
+    // 1. 加载动画帧
+    Vector<SpriteFrame*> frames;
+    for (int i = 1; i <= 6; i++)
+    {
+        std::string name = StringUtils::format("HUDanim/break/break_%d.png", i);
+        auto sprite = Sprite::create(name);
+        if (sprite) {
+            frames.pushBack(sprite->getSpriteFrame());
+        }
+    }
+
+    if (frames.empty()) return;
+
+    // 2. 创建动画 (速度快一点，0.04秒一帧)
+    auto animation = Animation::createWithSpriteFrames(frames, 0.06f);
+    auto animate = Animate::create(animation);
+
+    // 3. 创建临时 Sprite
+    // 因为所有图片尺寸一样，直接对齐坐标即可，无需偏移
+    auto effectSprite = Sprite::create();
+    effectSprite->setPosition(heartSprite->getPosition());
+
+    // Z序设为 20，保证盖在空血槽上面
+    _healthBarContainer->addChild(effectSprite, 20);
+
+    // 4. 播放并销毁
+    auto seq = Sequence::create(
+        animate,
+        RemoveSelf::create(),
+        nullptr
+    );
+
+    effectSprite->runAction(seq);
 }

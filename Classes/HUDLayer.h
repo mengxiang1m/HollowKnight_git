@@ -22,6 +22,9 @@ private:
 
     // UI 容器节点 (方便整体移动)
     cocos2d::Node* _healthBarContainer;
+
+    // 【新增】播放破碎动画
+    void playBreakAnimation(cocos2d::Sprite* heartSprite);
 };
 
 #endif // __HUD_LAYER_H__
