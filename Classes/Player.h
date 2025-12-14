@@ -90,6 +90,15 @@ public:
     // 【新增】设置回调的方法
     void setOnHealthChanged(HealthChangeCallback callback) { _onHealthChanged = callback; }
 
+    // 【新增】灵魂变化回调 (参数：当前灵魂值)
+    typedef std::function<void(int)> SoulChangeCallback;
+    void setOnSoulChanged(SoulChangeCallback callback) { _onSoulChanged = callback; }
+
+    // 【新增】获得灵魂 (amount 通常是 1)
+    void gainSoul(int amount);
+
+    // 【新增】获取当前灵魂
+    int getSoul() const { return _soul; }
 private:
     // ==========================================
     // 私有成员变量
@@ -144,6 +153,11 @@ private:
 
     // 【新增】保存回调函数
     HealthChangeCallback _onHealthChanged = nullptr;
+
+    // 【新增】灵魂属性
+    int _soul = 0;          // 当前灵魂值
+    int _maxSoul = 4;       // 上限 (1个瓶子 = 4点)
+    SoulChangeCallback _onSoulChanged = nullptr;
 };
 
 #endif // __PLAYER_H__

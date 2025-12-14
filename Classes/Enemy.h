@@ -1,6 +1,6 @@
 #ifndef __ENEMY_H__
 #define __ENEMY_H__
-
+#include <functional> 
 #include "cocos2d.h"
 
 USING_NS_CC;
@@ -29,11 +29,17 @@ public:
     // 设置巡逻范围
     void setPatrolRange(float leftBound, float rightBound);
 
-    // 【新增】获取碰撞箱（用于攻击判定）
+    // 获取碰撞箱（用于攻击判定）
     cocos2d::Rect getHitbox() const;
 
-    // 【新增】碰到主角时的击退反应
+    // 碰到主角时的击退反应
     void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
+
+    // 【新增】定义回调类型：这是一个“没有参数，也没有返回值”的函数类型
+    typedef std::function<void()> DeathCallback;
+
+    // 【新增】设置回调的函数
+    void setOnDeathCallback(DeathCallback callback) { _onDeathCallback = callback; }
 
     // 析构函数
     virtual ~Enemy();
@@ -57,6 +63,9 @@ private:
     // 属性
     int _health;                // 生命值
     int _maxHealth;             // 最大生命值
+
+    // 【新增】存储回调函数
+    DeathCallback _onDeathCallback = nullptr;
 
 	// 【修复】受击无敌时间
     bool _isInvincible = false;

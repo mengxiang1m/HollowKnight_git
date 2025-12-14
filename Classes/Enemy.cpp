@@ -1,5 +1,4 @@
 ﻿#include "Enemy.h"
-
 USING_NS_CC;
 
 Enemy* Enemy::create(const std::string& filename)
@@ -188,19 +187,24 @@ void Enemy::takeDamage(int damage)
     auto easeOut = EaseOut::create(knockback, 2.0f); // 缓动效果
     this->runAction(easeOut);
 
-    // ========================================
-    // 3. 检查是否死亡
-    // ========================================
-    if (_health <= 0)
-    {
-        CCLOG(" Enemy defeated!");
-        changeState(State::DEAD);
-    }
-
 	// 【修复】设置无敌持续时间
     this->scheduleOnce([this](float dt) {
         _isInvincible = false;
         }, 0.2f, "invincible_cooldown");
+
+    if (_health <= 0)
+    {
+        CCLOG("Enemy defeated!");
+        changeState(State::DEAD);
+
+        // ====================================================
+        // 【核心修改】不管是谁，执行它交代的后事
+        // ====================================================
+        if (_onDeathCallback)
+        {
+            _onDeathCallback(); // 执行回调！
+        }
+    }
 }
 
 void Enemy::changeState(State newState)

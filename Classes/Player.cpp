@@ -50,6 +50,7 @@ bool Player::init()
     _isFacingRight = false;
     _isInvincible = false;
     _isOnGround = false;
+    _soul = 0; 
 
     // 输入标记初始化
     _inputDirectionX = 0;
@@ -431,6 +432,22 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
 // =================================================================
 //  8. 辅助函数
 // =================================================================
+// 【新增】获得灵魂的函数
+void Player::gainSoul(int amount)
+{
+    _soul += amount;
+
+    // 限制最大值 (不能超过满瓶)
+    if (_soul > _maxSoul) {
+        _soul = _maxSoul;
+    }
+
+    // 通知 UI 更新
+    if (_onSoulChanged) {
+        _onSoulChanged(_soul);
+    }
+}
+
 cocos2d::Rect Player::getCollisionBox() const
 {
     Vec2 worldPos = this->getPosition();

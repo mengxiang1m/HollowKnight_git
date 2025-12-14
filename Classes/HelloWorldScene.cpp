@@ -122,6 +122,17 @@ bool HelloWorld::init()
             // 【改】加到 _gameLayer
             _gameLayer->addChild(enemy, 5);
             CCLOG("Enemy spawned!");
+            enemy->setOnDeathCallback([=]() {
+
+                // 1. 给主角回魂 (因为是在 Scene 里，直接访问 _player 很方便)
+                if (_player) {
+                    _player->gainSoul(1);
+                    CCLOG("Soul gained!");
+                }
+
+                //  播放特定的音效
+                // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+                });
         }
 
         // 创建 Zombie 敌人
@@ -133,6 +144,14 @@ bool HelloWorld::init()
             zombie->setTag(998);
             _gameLayer->addChild(zombie, 5);
             CCLOG("Zombie spawned!");
+            zombie->setOnDeathCallback([=]() {
+                if (_player) {
+                    _player->gainSoul(1);
+                    CCLOG("Soul gained!");
+                }
+
+                // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+                });
         }
     }
 
@@ -143,6 +162,7 @@ bool HelloWorld::init()
 
     if (_player)
     {
+        _player->setScale(1.25f);
         // 设置出生点 (根据地图调整)
         _player->setPosition(Vec2(400, 1300));
         _gameLayer->addChild(_player, 10);
@@ -173,6 +193,10 @@ bool HelloWorld::init()
     // 手动触发一次，让 UI 初始化显示满血
     // 注意：这里 _player 还没读 Config，确保 _health 已经有值了
     hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth()); // 你需要在 Player.h 加 getter
+
+    _player->setOnSoulChanged([=](int soul) {
+        hudLayer->updateSoul(soul);
+        });
 
     //////////////////////////////////////////////////////////////////////
     // 5. 键盘监听器
@@ -387,7 +411,7 @@ void HelloWorld::update(float dt)
             if (!enemyBox.equals(Rect::ZERO))
             {
                 bool isEnemyHit = false;
-				// 1.【修复】首先检测攻击是否命中敌人
+				// 1. 首先检测攻击是否命中敌人
                 if (_player->isAttackPressed())
                 {
                     Rect attackBox = _player->getAttackHitbox();
@@ -396,6 +420,7 @@ void HelloWorld::update(float dt)
                     {
                         CCLOG("HIT! Player hit the Enemy!");
                         enemy->takeDamage(1);
+
 						isEnemyHit = true;  // 标记敌人被击中
 
 						// 如果敌人被击中，玩家执行 pogo 跳跃

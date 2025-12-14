@@ -1,6 +1,6 @@
 #ifndef __ZOMBIE_H__
 #define __ZOMBIE_H__
-
+#include <functional>
 #include "cocos2d.h"
 
 USING_NS_CC;
@@ -37,6 +37,12 @@ public:
 
     // 【新增】碰到主角时的击退反应
     void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
+
+    // 【新增】定义回调类型：这是一个“没有参数，也没有返回值”的函数类型
+    typedef std::function<void()> DeathCallback;
+
+    // 【新增】设置回调的函数
+    void setOnDeathCallback(DeathCallback callback) { _onDeathCallback = callback; }
 
     // 析构函数
     virtual ~Zombie();
@@ -84,6 +90,8 @@ private:
     cocos2d::Animation* _attackReadyAnimation;
     cocos2d::Animation* _attackAnimation;
     cocos2d::Animation* _deathAnimation;
+
+    DeathCallback _onDeathCallback = nullptr;
 };
 
 #endif // __ZOMBIE_H__#pragma once

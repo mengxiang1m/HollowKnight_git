@@ -4,6 +4,43 @@
 #include "cocos2d.h"
 
 namespace Config {
+    namespace Soul {
+        // 动画参数
+        const float FRAME_SPEED = 0.14f;    // 每帧播放速度 (0.1秒一帧)
+        const float LOOP_DELAY = 3.0f;     // 动画播放完后等待 3 秒再播
+
+        // 1. 灵魂瓶外框 (6帧动画)
+        const std::string PATH_FRAME_ANIM = "HUDanim/HUDframe/HUDframe_%d.png";
+        const std::string PATH_FRAME_STATIC = "HUDanim/HUDframe/HUDframe_6.png"; // 定格在第6帧
+        const int FRAMES_FRAME_COUNT = 6;
+
+        // 2. 液体 (现在都在 orb 文件夹下)
+        const std::string PATH_EMPTY = "HUDanim/orb/V_empty/V_empty.png"; // 注意 orb
+        const std::string PATH_QUARTER = "HUDanim/orb/V_quarter/V_quarter_%d.png";
+        const std::string PATH_HALF = "HUDanim/orb/V_half/V_half_%d.png";
+        const std::string PATH_3QUARTER = "HUDanim/orb/V_3quarter/V_3quarter_%d.png";
+        const std::string PATH_FULL = "HUDanim/orb/V_full/V_full_%d.png";
+
+        const int FRAMES_QUARTER = 4;
+        const int FRAMES_HALF = 4;
+        const int FRAMES_3QUARTER = 4;
+        const int FRAMES_FULL = 10;
+    }
+
+    namespace Health {
+        // 血条路径
+        const std::string PATH_FULL = "HUDanim/health/full/full.png";
+        const std::string PATH_EMPTY = "HUDanim/health/empty/empty.png";
+
+        // 出现动画 (5帧)
+        const std::string PATH_APPEAR = "HUDanim/health/appear/appear_%d.png";
+        const int FRAMES_APPEAR = 5;
+
+        // 破碎动画 (6帧)
+        const std::string PATH_BREAK = "HUDanim/health/break/break_%d.png";
+        const int FRAMES_BREAK = 6;
+    }
+
     namespace Player {
         // 物理参数
         const float MOVE_SPEED = 300.0f;

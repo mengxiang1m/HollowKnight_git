@@ -421,6 +421,11 @@ void Zombie::takeDamage(int damage)
     {
         CCLOG("? Zombie defeated!");
         changeState(State::DEAD);
+
+        if (_onDeathCallback)
+        {
+            _onDeathCallback(); // 执行回调！
+        }
     }
 
     // 3. 设置定时器关闭无敌 (0.2秒后恢复)
