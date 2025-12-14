@@ -24,10 +24,10 @@ public:
     virtual bool init() override;
 
     // 每帧更新 (需要玩家位置)
-    void update(float dt, const cocos2d::Vec2& playerPos);
+    void update(float dt, const cocos2d::Vec2& playerPos, const std::vector<cocos2d::Rect>& platforms);
 
-    // 受击处理
-    void takeDamage(int damage);
+    // 受击处理（接收攻击者位置以计算正确的击退方向）
+    void takeDamage(int damage, const cocos2d::Vec2& attackerPos);
 
     // 设置巡逻范围
     void setPatrolRange(float leftBound, float rightBound);
@@ -55,26 +55,38 @@ private:
 
     // AI逻辑
     bool isPlayerInRange(const cocos2d::Vec2& playerPos);
-    bool isPlayerInChaseRange(const cocos2d::Vec2& playerPos); // ← 新增
     void updatePatrolBehavior(float dt);
     void updateAttackBehavior(float dt, const cocos2d::Vec2& playerPos);
 
-    // 移动相关
+    // 物理更新方法
+    void updateMovementY(float dt);
+    void updateCollisionY(const std::vector<cocos2d::Rect>& platforms);
+    void updateMovementX(float dt);
+    void updateCollisionX(const std::vector<cocos2d::Rect>& platforms);
+
+    // 移动属性
     float _moveSpeed;           // 巡逻速度
-    float _attackSpeed;         // 攻击冲锋速度
+    float _attackSpeed;         // 攻击移动速度
     bool _movingRight;          // 是否向右移动
     float _patrolLeftBound;     // 巡逻左边界
     float _patrolRightBound;    // 巡逻右边界
 
     // 检测范围
     float _detectionRange;      // 检测玩家的范围
-    float _maxChaseRange;       // ← 新增：最大追逐范围
-    cocos2d::Vec2 _spawnPosition;   // ← 新增：出生位置
+
+    // 物理属性
+    cocos2d::Vec2 _velocity;    // 速度（包含X和Y方向）
+    bool _isOnGround;           // 是否在地面上
+    float _gravity;             // 重力加速度
+    float _maxFallSpeed;        // 最大下落速度
 
     // 属性
     int _health;                // 生命值
     int _maxHealth;             // 最大生命值
     bool _isFacingRight;        // 面向方向
+
+    // 【修复】受击无敌时间
+    bool _isInvincible = false;
 
     // 动画缓存
     cocos2d::Animation* _walkAnimation;
@@ -83,4 +95,4 @@ private:
     cocos2d::Animation* _deathAnimation;
 };
 
-#endif // __ZOMBIE_H__
+#endif // __ZOMBIE_H__#pragma once

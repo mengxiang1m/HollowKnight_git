@@ -21,9 +21,15 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
-
 #include "AppDelegate.h"
 #include "HelloWorldScene.h"
+
+// 引入 Windows 平台所需的头文件和库
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32)
+#include "platform/desktop/CCGLViewImpl-desktop.h" // 用于获取 Windows 窗口句柄
+#include <imm.h>                                    // 输入法管理器头文件
+#pragma comment(lib, "imm32.lib")                   // 链接输入法库
+#endif
 
 // #define USE_AUDIO_ENGINE 1
 // #define USE_SIMPLE_AUDIO_ENGINE 1
@@ -42,7 +48,6 @@ using namespace CocosDenshion;
 
 USING_NS_CC;
 
-// 【回滚】恢复原始设计分辨率，不要修改它！
 static cocos2d::Size designResolutionSize = cocos2d::Size(2048, 1536);
 static cocos2d::Size windowSize = cocos2d::Size(1600, 1200);  // 窗口大小
 
@@ -86,7 +91,6 @@ bool AppDelegate::applicationDidFinishLaunching() {
     auto glview = director->getOpenGLView();
     if(!glview) {
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32) || (CC_TARGET_PLATFORM == CC_PLATFORM_MAC) || (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX)
-        // 【修改】使用更大的窗口尺寸
         glview = GLViewImpl::createWithRect("HollowKnight", cocos2d::Rect(0, 0, windowSize.width, windowSize.height));
 #else
         glview = GLViewImpl::create("HollowKnight");
@@ -94,6 +98,26 @@ bool AppDelegate::applicationDidFinishLaunching() {
         director->setOpenGLView(glview);
     }
 
+    // ============================================================
+    // 【关键 2】在这里禁用 Windows 中文输入法
+    // ============================================================
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32)
+    // 强制转换为 GLViewImpl 以获取 Windows 特有接口
+    auto win32view = (cocos2d::GLViewImpl*)glview;
+    if (win32view)
+    {
+        HWND hwnd = win32view->getWin32Window();
+        if (hwnd)
+        {
+            // 断开输入法上下文关联
+            ImmAssociateContext(hwnd, NULL);
+
+            // 强制切换键盘布局为美式英语 (0x0409)
+            LoadKeyboardLayout(L"00000409", KLF_ACTIVATE);
+        }
+    }
+#endif
+    // ============================================================
     // turn on display FPS
     director->setDisplayStats(true);
 
@@ -153,3 +177,4 @@ void AppDelegate::applicationWillEnterForeground() {
     SimpleAudioEngine::getInstance()->resumeAllEffects();
 #endif
 }
+

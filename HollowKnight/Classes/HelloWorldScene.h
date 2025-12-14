@@ -27,37 +27,52 @@
 
 #include "cocos2d.h"
 #include "Player.h"
+#include "Spike.h"
 
 class HelloWorld : public cocos2d::Scene
 {
 public:
     static cocos2d::Scene* createScene();
 
+    // 游戏容器层（所有游戏对象的动态）
+    cocos2d::Layer* _gameLayer;
+
     virtual bool init();
 
     virtual void update(float dt) override;
 
-    // 一个默认的关闭按钮回调，用来退出游戏
+    // 处理默认的关闭按钮回调，退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
-    // 这一行宏是 cocos 必须的
+    // 和一系列宏和 cocos 引擎相关    
     CREATE_FUNC(HelloWorld);
 
-private:
-    Player* _player;
+private: 
+    Player* _player; 
 
-    // 【新增】键盘状态标志位
+    //地图瓦片中的地面矩形引用
+    std::vector<cocos2d::Rect> _groundRects;
+
+    // 解析地图碰撞盒的辅助函数
+    void parseMapCollisions(cocos2d::TMXTiledMap* map);
+
+    //输入状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;
+	bool _isUpPressed = false;
+	bool _isDownPressed = false;
 
-    // 【新增】更新玩家移动的辅助函数
+    // 根据输入更新玩家移动速度
     void updatePlayerMovement();
 
-    // 保存地图中的地面矩形
-    std::vector<cocos2d::Rect> _groundRects;
+    // 【新增】坐标显示标签
+    cocos2d::Label* _coordLabel;
     
-    // 解析地图碰撞的辅助函数
-    void parseMapCollisions(cocos2d::TMXTiledMap* map);
+    // 【新增】调试用DrawNode
+    cocos2d::DrawNode* _debugDrawNode;
+    
+    // 【新增】Spike调试信息标签
+    cocos2d::Label* _spikeDebugLabel;
 };
 
 #endif // __HELLOWORLD_SCENE_H__

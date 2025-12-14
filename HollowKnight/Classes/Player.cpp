@@ -1,13 +1,16 @@
 ﻿#include "Player.h"
+#include "PlayerStates.h" // 引入状态类的实现
+#include "config.h"   // 【核心】引入数值配置
 
 USING_NS_CC;
 
 // =================================================================
-//  1. 创建与初始化 (Lifecycle)
+//  1. 生命周期 (Lifecycle)
 // =================================================================
 
 Player* Player::create(const std::string& filename)
 {
+    // 注意：这里为了架构整洁，忽略了 filename 参数，直接在 init 里加载 Config 指定的资源
     Player* player = new (std::nothrow) Player();
     if (player && player->init())
     {
@@ -20,472 +23,141 @@ Player* Player::create(const std::string& filename)
 
 bool Player::init()
 {
+    // 1. 加载初始纹理
     if (!this->initWithFile("Knight/idle/idle_1.png"))
     {
-        CCLOG("Error: Failed to load 'Knight/idle_1.png' in Player::init");
+        CCLOG("Error: Failed to load 'Knight/idle/idle_1.png'");
         return false;
     }
 
+    // 2. 设置锚点 (底边中心)
     this->setAnchorPoint(Vec2(0.5f, 0.0f));
 
+    // 3. 初始化物理碰撞箱参数
     Size size = this->getContentSize();
-    CCLOG("Player init: Texture size = (%f, %f)", size.width, size.height);
-
-    // 物理碰撞箱设置
     float bodyW = size.width * 0.6f;
     float bottomGap = 30.0f;
     float bodyH = size.height - bottomGap;
-    float startX = -bodyW * 0.5f;
-    float startY = bottomGap;
 
-    _localBodyRect = Rect(startX, startY, bodyW, bodyH);
     _bodySize = Size(bodyW, bodyH);
     _bodyOffset = Vec2(0, bottomGap);
+    _localBodyRect = Rect(-bodyW * 0.5f, bottomGap, bodyW, bodyH);
 
-    // 运动参数
-    _moveSpeed = 300.0f;
+    // 4. 初始化基础变量
     _velocity = Vec2::ZERO;
-    _gravity = 2000.0f;
-    _jumpForce = 700.0f;
-    
-    // 【新增】可变跳跃参数
-    _isJumpingAction = false;
-    _jumpTimer = 0.0f;
-    _maxJumpTime = 0.35f;
-
-    _isFacingRight = false;  // 【修改】初始朝向改为向左
-    _isAttacking = false;
-    _isOnGround = false;
-    _currentState = State::IDLE;
-
-    // 生命值初始化
-    _health = 5;
-    _maxHealth = 5;
+    _health = Config::Player::MAX_HEALTH; // 使用 Config
+    _maxHealth = Config::Player::MAX_HEALTH;
+    _isFacingRight = false;
     _isInvincible = false;
+    _isOnGround = false;
 
-    // 【新增】初始化攻击特效精灵
-    _slashEffectSprite = Sprite::create();
-    _slashEffectSprite->setPosition(Vec2(60, 70));
-    _slashEffectSprite->setVisible(false);
-    this->addChild(_slashEffectSprite, 10);
+    // 输入标记初始化
+    _inputDirectionX = 0;
+    _inputDirectionY = 0;
+    _isAttackPressed = false;
+    _jumpTimer = 0.0f;
+    _isJumpingAction = false;
+    _isJumpPressed = false;
 
-    // 【新增】初始化动画高度补偿
-    _damageAnimHeightOffset = 0.0f;
-
+    // 5. 加载所有动画资源
     initAnimations();
 
+    // 6. 初始化特效 (刀光)
+    _slashEffectSprite = Sprite::create();
+    _slashEffectSprite->setVisible(false);
+
+    this->addChild(_slashEffectSprite, 10);
+
+    // 7. 调试绘图
     _debugNode = DrawNode::create();
     this->addChild(_debugNode, 999);
 
-    changeState(State::IDLE);
+    // 8. 【核心】启动状态机 - 进入待机状态
+    this->changeState(new StateIdle());
 
     return true;
 }
 
 // =================================================================
-//  2. 物理核心循环 (Physics Loop)
+//  2. 核心循环 (Core Loop)
 // =================================================================
 
 void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
 {
-    // 【修改】受伤状态时只处理X轴物理
+    // 1. 【逻辑层】委托给状态机处理
+    if (_state)
+    {
+        _state->update(this, dt);
+    }
+
+    // 2. 【物理层】执行位移和碰撞
     updateMovementX(dt);
     updateCollisionX(platforms);
 
-    // 【关键修复】受伤状态时禁用Y轴物理，防止下沉
-    if (_currentState != State::DAMAGED)
-    {
-        updateMovementY(dt);
-        updateCollisionY(platforms);
-    }
+    updateMovementY(dt);
+    updateCollisionY(platforms);
 
-    // 只有非受伤状态才更新状态机
-    if (_currentState != State::DAMAGED)
-    {
-        updateStateMachine();
-    }
-
-    drawDebugRects();
 }
 
-void Player::updateMovementX(float dt)
+// =================================================================
+//  3. 状态机接口 (State Machine Interface)
+// =================================================================
+
+void Player::changeState(PlayerState* newState)
 {
-    float dx = _velocity.x * dt;
-    this->setPositionX(this->getPositionX() + dx);
+    if (_state)
+    {
+        _state->exit(this);
+        delete _state;
+    }
+
+    _state = newState;
+
+    if (_state)
+    {
+        _state->enter(this);
+    }
 }
 
-void Player::updateCollisionX(const std::vector<cocos2d::Rect>& platforms)
-{
-    Rect playerRect = getCollisionBox();
+// =================================================================
+//  4. 动作执行接口 (Actions)
+// =================================================================
 
-    for (const auto& wall : platforms)
+void Player::moveInDirection(int dir)
+{
+    // 使用 Config::Player::MOVE_SPEED
+    _velocity.x = dir * Config::Player::MOVE_SPEED;
+
+    // 处理翻转
+    if (dir != 0)
     {
-        if (playerRect.intersectsRect(wall))
+        bool newFacingRight = (dir > 0);
+        if (_isFacingRight != newFacingRight)
         {
-            // 【修改】计算 Y 轴重叠区域，防止脚底擦过地面被误判为撞墙
-            float overlapY = std::min(playerRect.getMaxY(), wall.getMaxY()) -
-                std::max(playerRect.getMinY(), wall.getMinY());
-
-            // 只有当 Y 轴重叠足够大时，才认为是撞墙
-            if (overlapY > playerRect.size.height * 0.5f)
-            {
-                if (_velocity.x > 0)
-                {
-                    float newX = wall.getMinX() - _bodySize.width * 0.5f - _bodyOffset.x - 0.1f;
-                    this->setPositionX(newX);
-                }
-                else if (_velocity.x < 0)
-                {
-                    float newX = wall.getMaxX() + _bodySize.width * 0.5f - _bodyOffset.x + 0.1f;
-                    this->setPositionX(newX);
-                }
-            }
+            _isFacingRight = newFacingRight;
+            this->setFlippedX(_isFacingRight);
         }
     }
 }
 
-void Player::updateMovementY(float dt)
+void Player::setVelocityX(float x)
 {
-    // ============================================================
-    // 【新增】空洞骑士式可变高度跳跃
-    // ============================================================
-    if (_isJumpingAction)
-    {
-        _jumpTimer += dt;
-
-        // 如果按住时间还在允许范围内
-        if (_jumpTimer < _maxJumpTime)
-        {
-            // 上升加速度：持续提供向上的力
-            float jumpAcc = 3000.0f;
-            _velocity.y += jumpAcc * dt;
-        }
-        else
-        {
-            // 超时了，强制结束加力阶段
-            _isJumpingAction = false;
-        }
-    }
-
-    // ============================================================
-    // 标准重力处理
-    // ============================================================
-    _velocity.y -= _gravity * dt;
-    
-    // 【修复】限制下落速度，防止穿地
-    if (_velocity.y < -1200.0f) _velocity.y = -1200.0f;  // 从 -1500.0f 改为 -1200.0f
-
-    float dy = _velocity.y * dt;
-    
-    // 【新增】限制单帧位移，防止穿透
-    float maxDy = 50.0f;
-    if (dy < -maxDy) dy = -maxDy;
-    else if (dy > maxDy) dy = maxDy;
-    
-    this->setPositionY(this->getPositionY() + dy);
+    _velocity.x = x;
 }
 
-void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
-{
-    _isOnGround = false;
-    Rect playerRect = getCollisionBox();
-
-    // 【调试】输出玩家碰撞箱信息
-    CCLOG("[Collision Debug] Player Box: (%.1f, %.1f, %.1f, %.1f)", 
-          playerRect.origin.x, playerRect.origin.y, 
-          playerRect.size.width, playerRect.size.height);
-
-    for (const auto& platform : platforms)
-    {
-        if (playerRect.intersectsRect(platform))
-        {
-            // 【调试】输出碰撞信息
-            CCLOG("[Collision Debug] Platform: (%.1f, %.1f, %.1f, %.1f) | Velocity.y: %.1f", 
-                  platform.origin.x, platform.origin.y,
-                  platform.size.width, platform.size.height,
-                  _velocity.y);
-
-            // 【修改】计算 X 轴重叠区域，防止侧面贴墙时被错误吸附
-            float overlapX = std::min(playerRect.getMaxX(), platform.getMaxX()) -
-                std::max(playerRect.getMinX(), platform.getMinX());
-
-            CCLOG("[Collision Debug] overlapX: %.1f, threshold: %.1f", 
-                  overlapX, playerRect.size.width * 0.1f);
-
-            // 【关键修复】提高X轴重叠阈值，从 0.1f 改为 0.6f
-            // 只有当主角的大部分身体在平台上时，才进行Y轴修正
-            if (overlapX > playerRect.size.width * 0.4f)
-            {
-                if (_velocity.y <= 0)
-                {
-                    // 【修复】增加容差值，防止高速下落时穿透
-                    float tolerance = 60.0f;  // 从 40.0f 改为 60.0f
-                    float overlapY = platform.getMaxY() - playerRect.getMinY();
-
-                    if (overlapY > -0.1f && overlapY <= tolerance)
-                    {
-                        float newY = platform.getMaxY() - _bodyOffset.y - 1.0f;
-                        this->setPositionY(newY);
-                        
-                        // 【新增】强制将速度清零，防止累积误差
-                        _velocity.y = 0.0f;
-                        _isOnGround = true;
-                        
-                        // 【新增】如果正在跳跃蓄力，立即停止
-                        _isJumpingAction = false;
-                    }
-                }
-                else if (_velocity.y > 0)
-                {
-                    float tolerance = 20.0f;
-                    float overlapY = playerRect.getMaxY() - platform.getMinY();
-
-                    if (overlapY > 0 && overlapY <= tolerance)
-                    {
-                        float newY = platform.getMinY() - _bodySize.height - _bodyOffset.y;
-                        this->setPositionY(newY);
-                        
-                        // 【修复】撞到头顶时立即停止上升
-                        _velocity.y = 0.0f;
-                        
-                        // 【新增】强制结束跳跃蓄力
-                        _isJumpingAction = false;
-                    }
-                }
-            }
-        }
-    }
-    
-    if (!_isOnGround)
-    {
-        CCLOG("[Collision Debug] 🔴 Player is NOT on ground");
-    }
-}
-
-// =================================================================
-//  3. 辅助功能 (Helpers)
-// =================================================================
-
-cocos2d::Rect Player::getCollisionBox() const
-{
-    Vec2 worldPos = this->getPosition();
-    
-    return Rect(
-        worldPos.x + _localBodyRect.origin.x,
-        worldPos.y + _localBodyRect.origin.y,
-        _localBodyRect.size.width,
-        _localBodyRect.size.height
-    );
-}
-
-void Player::drawDebugRects()
-{
-    if (!_debugNode) return;
-    _debugNode->clear();
-
-    Size size = this->getContentSize();
-    Vec2 centerOffset = Vec2(size.width * 0.5f, 0.0f);
-    
-    Vec2 greenMin = _localBodyRect.origin + centerOffset;
-    Vec2 greenMax = greenMin + _localBodyRect.size;
-    _debugNode->drawSolidRect(greenMin, greenMax, Color4F(0, 1, 0, 0.4f));
-
-    _debugNode->drawRect(Vec2::ZERO, Vec2(size.width, size.height), Color4F(0, 0, 1, 0.5f));
-
-    _debugNode->drawDot(centerOffset, 5.0f, Color4F::MAGENTA);
-
-    // 【修改】攻击框参数更新，与 getAttackHitbox 保持一致
-    if (_currentState == State::SLASHING) {
-        float attackRange = 150.0f;   // 与 getAttackHitbox 一致
-        float attackHeight = 90.0f;   // 与 getAttackHitbox 一致
-        float innerOffset = 20.0f;
-
-        float startY = 0 + _bodyOffset.y + 10.0f;
-
-        float startX;
-        if (_isFacingRight) {
-            startX = (size.width / 2) - innerOffset;
-        }
-        else {
-            startX = (size.width / 2) + innerOffset - attackRange;
-        }
-
-        Vec2 origin(startX, startY);
-        Vec2 dest(startX + attackRange, startY + attackHeight);
-        _debugNode->drawRect(origin, dest, Color4F(1, 0, 0, 0.6f));
-    }
-}
-
-// =================================================================
-//  4. 状态机与输入 (State & Input)
-// =================================================================
-
-void Player::updateStateMachine()
-{
-    if (_isAttacking || _currentState == State::DAMAGED) return;
-
-    State targetState = _currentState;
-
-    if (_isOnGround)
-    {
-        if (std::abs(_velocity.x) > 10.0f) targetState = State::RUNNING;
-        else targetState = State::IDLE;
-    }
-    else
-    {
-        if (_velocity.y > 0) targetState = State::JUMPING;
-        else targetState = State::FALLING;
-    }
-
-    if (targetState != _currentState)
-    {
-        changeState(targetState);
-    }
-}
-
-void Player::changeState(State newState, bool force)
-{
-    if (_currentState == State::DAMAGED && newState != State::DAMAGED && !force)
-    {
-        return;
-    }
-
-    // 【新增】保存旧状态，用于判断是否需要补偿高度
-    State oldState = _currentState;
-
-    // 【修改】判断改为 SLASHING
-    if (_currentState != State::SLASHING) {
-        this->stopActionByTag(101);
-    }
-
-    _currentState = newState;
-    _isAttacking = (newState == State::SLASHING);
-
-    Action* newAction = nullptr;
-    switch (_currentState)
-    {
-    case State::IDLE:
-        if (_idleAnim) newAction = RepeatForever::create(Animate::create(_idleAnim));
-        break;
-    case State::RUNNING:
-        if (_runAnim) newAction = RepeatForever::create(Animate::create(_runAnim));
-        break;
-    case State::JUMPING:
-        if (_jumpAnim) newAction = RepeatForever::create(Animate::create(_jumpAnim));
-        break;
-    case State::FALLING:
-        if (_fallAnim) newAction = RepeatForever::create(Animate::create(_fallAnim));
-        break;
-    case State::DAMAGED:
-        if (_damageAnim) newAction = Animate::create(_damageAnim);
-        break;
-    // 【新增】SLASHING 状态处理，包含特效
-    case State::SLASHING:
-        if (_slashAnim) {
-            // 主角攻击动画
-            auto charAnimate = Animate::create(_slashAnim);
-            auto finishCallback = CallFunc::create([this]() {
-                _isAttacking = false;
-                this->updateStateMachine();
-            });
-            newAction = Sequence::create(charAnimate, finishCallback, nullptr);
-
-            // 攻击特效动画
-            if (_slashEffectSprite && _slashEffectAnim)
-            {
-                _slashEffectSprite->setVisible(true);
-                _slashEffectSprite->setFlippedX(_isFacingRight);
-
-                float offsetX = _isFacingRight ? 60.0f : 60.0f;
-                _slashEffectSprite->setPosition(Vec2(offsetX, 70));
-
-                auto effectAnimate = Animate::create(_slashEffectAnim);
-                auto hideEffect = CallFunc::create([this]() {
-                    _slashEffectSprite->setVisible(false);
-                });
-
-                _slashEffectSprite->stopAllActions();
-                _slashEffectSprite->runAction(Sequence::create(effectAnimate, hideEffect, nullptr));
-            }
-        }
-        break;
-    default: 
-        break;
-    }
-
-    if (newAction) {
-        newAction->setTag(101);
-        this->runAction(newAction);
-    }
-
-    this->setAnchorPoint(Vec2(0.5f, 0.0f));
-    
-    // 【新增】动画高度补偿逻辑
-    if (oldState != State::DAMAGED && newState == State::DAMAGED)
-    {
-        // 从其他状态切换到受伤状态：向上移动以补偿高度差
-        float currentY = this->getPositionY();
-        this->setPositionY(currentY + _damageAnimHeightOffset);
-        CCLOG("[Animation] Switched to DAMAGED: Y adjusted from %.1f to %.1f (offset=%.1f)", 
-              currentY, currentY + _damageAnimHeightOffset, _damageAnimHeightOffset);
-    }
-    else if (oldState == State::DAMAGED && newState != State::DAMAGED)
-    {
-        // 从受伤状态切换到其他状态：向下移动以恢复高度
-        float currentY = this->getPositionY();
-        this->setPositionY(currentY - _damageAnimHeightOffset);
-        CCLOG("[Animation] Switched from DAMAGED: Y adjusted from %.1f to %.1f (offset=%.1f)", 
-              currentY, currentY - _damageAnimHeightOffset, _damageAnimHeightOffset);
-    }
-}
-
-// =================================================================
-//  5. 动作接口
-// =================================================================
-
-void Player::moveLeft()
-{
-    if (_isAttacking || _currentState == State::DAMAGED) return;
-    _velocity.x = -_moveSpeed;
-    _isFacingRight = false;
-    this->setFlippedX(false);
-}
-
-void Player::moveRight()
-{
-    if (_isAttacking || _currentState == State::DAMAGED) return;
-    _velocity.x = _moveSpeed;
-    _isFacingRight = true;
-    this->setFlippedX(true);
-}
-
-void Player::stopMove()
-{
-    _velocity.x = 0;
-}
-
-// 【新增】可变高度跳跃 - 开始跳跃
 void Player::startJump()
 {
-    if (_isOnGround && !_isAttacking && _currentState != State::DAMAGED)
-    {
-        _isOnGround = false;
-        _isJumpingAction = true;
-        _jumpTimer = 0.0f;
-
-        // 起跳初速度（轻点能跳的高度）
-        _velocity.y = 400.0f;
-
-        changeState(State::JUMPING);
-    }
+    _isOnGround = false;
+    _isJumpingAction = true;
+    _jumpTimer = 0.0f;
+    _velocity.y = Config::Player::JUMP_FORCE_BASE;
 }
 
-// 【新增】可变高度跳跃 - 停止跳跃
 void Player::stopJump()
 {
     _isJumpingAction = false;
 
-    // 松手时如果还在上升，立刻砍半速度
+    // 截断跳跃 - 手感优化
     if (_velocity.y > 0)
     {
         _velocity.y *= 0.5f;
@@ -494,240 +166,426 @@ void Player::stopJump()
 
 void Player::attack()
 {
-    if (_isAttacking || _currentState == State::DAMAGED) return;
+    // 纯视觉表现，逻辑计时交给 StateSlash
+    if (_slashEffectSprite)
+    {
+        _slashEffectSprite->stopAllActions();
+        _slashEffectSprite->setVisible(true);
+        _slashEffectSprite->setFlippedX(_isFacingRight);
 
-    // 地面攻击定身，空中攻击保持惯性
-    if (_isOnGround) _velocity.x = 0;
+        Size size = this->getContentSize();
+        Vec2 centerPos = Vec2(size.width / 2, 90); // 身体中心基准点
+        std::string effectAnimName = "";
 
-    changeState(State::SLASHING);
+        // ============================================
+        // 根据攻击方向选择动画和位置
+        // ============================================
+        if (_currentAttackDir == 1) // 上劈
+        {
+            effectAnimName = "slash_up_effect"; // 播放专门的上劈特效
+            _slashEffectSprite->setPosition(centerPos + Vec2(50, 80)); // 向上偏移
+        }
+        else if (_currentAttackDir == -1) // 下劈
+        {
+            effectAnimName = "slash_down_effect"; // 播放专门的下劈特效
+            _slashEffectSprite->setPosition(centerPos + Vec2(50, -70)); // 向下偏移
+        }
+        else
+        {
+            effectAnimName = "slash_effect"; // 播放水平特效
+            float offsetX = _isFacingRight ? 20.0f : 40.0f;
+            _slashEffectSprite->setPosition(centerPos + Vec2(offsetX, 0));
+        }
+
+        auto effectAnim = _animations.at(effectAnimName);
+        if (effectAnim) {
+            auto seq = Sequence::create(
+                Animate::create(effectAnim),
+                CallFunc::create([this]() { _slashEffectSprite->setVisible(false); }),
+                nullptr
+            );
+            _slashEffectSprite->runAction(seq);
+        }
+        
+    }
+}
+
+void Player::takeDamage(int damage, const std::vector<cocos2d::Rect>& platforms)
+{
+    if (_isInvincible) return;
+
+    _health -= damage;
+    if (_health < 0) _health = 0;
+    CCLOG("Player took damage! Health: %d", _health);
+
+    changeState(new StateDamaged());
+
+    // 【修改】击退前检测墙壁，避免穿模
+    float direction = _isFacingRight ? -1.0f : 1.0f;
+    float knockbackSpeed = 200.0f;
+    
+    // 获取当前位置和碰撞箱
+    Vec2 currentPos = this->getPosition();
+    Rect currentBox = getCollisionBox();
+    
+    // 预测击退后的位置（0.3秒的移动距离）
+    float knockbackDistance = knockbackSpeed * 0.3f;
+    Vec2 predictedPos = Vec2(currentPos.x + direction * knockbackDistance, currentPos.y);
+    
+    // 计算预测的碰撞箱
+    Rect predictedBox = Rect(
+        predictedPos.x + _localBodyRect.origin.x,
+        predictedPos.y + _localBodyRect.origin.y,
+        _localBodyRect.size.width,
+        _localBodyRect.size.height
+    );
+    
+    // 检测预测位置是否会撞墙
+    bool willHitWall = false;
+    for (const auto& wall : platforms)
+    {
+        if (predictedBox.intersectsRect(wall))
+        {
+            // 计算Y轴重叠高度
+            float overlapY = std::min(predictedBox.getMaxY(), wall.getMaxY()) -
+                           std::max(predictedBox.getMinY(), wall.getMinY());
+            
+            // 如果Y轴重叠足够大，说明会撞墙
+            if (overlapY > predictedBox.size.height * 0.5f)
+            {
+                willHitWall = true;
+                CCLOG("[Player] Knockback would hit wall! Canceling knockback.");
+                break;
+            }
+        }
+    }
+    
+    // 如果不会撞墙，应用正常击退
+    if (!willHitWall)
+    {
+        _velocity.x = direction * knockbackSpeed;
+        _velocity.y = 300.0f;
+    }
+    else
+    {
+        // 会撞墙，不应用击退
+        _velocity.x = 0;
+        _velocity.y = 0;
+        CCLOG("[Player] Near wall, no knockback applied to avoid clipping");
+    }
+
+    // 【新增】通知 UI 更新
+    if (_onHealthChanged) {
+        _onHealthChanged(_health, _maxHealth);
+    }
+
+    // 开启无敌
+    _isInvincible = true;
+    auto blink = RepeatForever::create(Sequence::create(FadeTo::create(0.1f, 100), FadeTo::create(0.1f, 255), nullptr));
+    blink->setTag(999);
+    this->runAction(blink);
+
+    this->scheduleOnce([this](float dt) {
+        _isInvincible = false;
+        this->stopActionByTag(999);
+        this->setOpacity(255);
+        }, 2.0f, "invincible_end");
+}
+
+void Player::pogoJump()
+{
+    _velocity.y = 0;
+    // 给一个向上的瞬时速度 (类似跳跃)
+    _velocity.y = Config::Player::JUMP_FORCE_BASE*1.2f;
+    _isOnGround = false;
+}
+// =================================================================
+//  5. 动画系统
+// =================================================================
+
+void Player::playAnimation(const std::string& animName)
+{
+    this->stopActionByTag(101);
+
+    if (_animations.find(animName) == _animations.end())
+    {
+        CCLOG("Warning: Animation '%s' not found!", animName.c_str());
+        return;
+    }
+
+    auto anim = _animations.at(animName);
+
+    Action* action = nullptr;
+    // ============================================================
+    // 根据动画名字决定是否循环
+    // ============================================================
+
+    //  单次播放的动作
+    if (animName == "slash" || animName == "damage"||
+        animName == "lookup"|| animName == "lookdown"||
+        animName == "slash_up" || animName == "slash_down")
+    {
+        action = Animate::create(anim); // 只创建 Animate，不包 RepeatForever
+    }
+    // 循环播放的动作
+    else
+    {
+        action = RepeatForever::create(Animate::create(anim));
+    }    
+    
+    if (action) {
+        action->setTag(101);
+        this->runAction(action);
+    }
+}
+
+void Player::initAnimations()
+{
+    auto loadAnim = [&](const std::string& name, const std::string& format, int count, float delay) {
+        Vector<SpriteFrame*> frames;
+        for (int i = 1; i <= count; i++) {
+            std::string path = StringUtils::format(format.c_str(), i);
+            auto sprite = Sprite::create(path);
+            if (sprite) frames.pushBack(sprite->getSpriteFrame());
+        }
+        if (!frames.empty()) {
+            auto anim = Animation::createWithSpriteFrames(frames, delay);
+            anim->retain();
+            _animations.insert(name, anim);
+        }
+    };
+
+    loadAnim("idle", Config::Path::PLAYER_IDLE, 9, 0.15f);
+    loadAnim("run", Config::Path::PLAYER_RUN, 13, 0.15f);
+    loadAnim("jump", Config::Path::PLAYER_JUMP, 6, 0.15f);
+    loadAnim("fall", Config::Path::PLAYER_FALL, 6, 0.15f);
+    loadAnim("slash", Config::Path::PLAYER_SLASH, 6, 0.04f);
+    loadAnim("slash_effect", Config::Path::PLAYER_SLASH_EFFECT, 6, 0.04f);
+    loadAnim("damage", Config::Path::PLAYER_DAMAGE, 4, 0.1f);
+    loadAnim("lookup", Config::Path::PLAYER_LOOKUP, 6, 0.1f);
+    loadAnim("lookdown", Config::Path::PLAYER_LOOKDOWN, 6, 0.1f);
+    loadAnim("slash_up", Config::Path::PLAYER_UPSLASH, 6, 0.04f);
+    loadAnim("slash_up_effect", Config::Path::PLAYER_UP_SLASH_EFFECT, 6, 0.04f);
+    loadAnim("slash_down_effect", Config::Path::PLAYER_DOWN_SLASH_EFFECT, 6, 0.04f);
+    loadAnim("slash_down", Config::Path::PLAYER_DOWNSLASH, 6, 0.04f);
+}
+
+// =================================================================
+//  6. 输入设置
+// =================================================================
+void Player::setInputDirectionX(int dir) { _inputDirectionX = dir; }
+void Player::setInputDirectionY(int dir) { _inputDirectionY = dir; }
+void Player::setAttackPressed(bool pressed) { _isAttackPressed = pressed; }
+void Player::setJumpPressed(bool pressed) { _isJumpPressed = pressed; }
+void Player::setAttackDir(int dir) { _currentAttackDir = dir; }
+// =================================================================
+//  7. 物理引擎 (使用 Config)
+// =================================================================
+
+void Player::updateMovementX(float dt)
+{
+    float dx = _velocity.x * dt;
+    this->setPositionX(this->getPositionX() + dx);
+}
+
+void Player::updateMovementY(float dt)
+{
+    // 长按跳跃增高
+    if (_isJumpingAction)
+    {
+        _jumpTimer += dt;
+        // 使用 Config::Player::MAX_JUMP_TIME
+        if (_jumpTimer < Config::Player::MAX_JUMP_TIME) {
+            // 使用 Config::Player::JUMP_ACCEL
+            _velocity.y += Config::Player::JUMP_ACCEL * dt;
+        }
+        else {
+            _isJumpingAction = false;
+        }
+    }
+
+    // 重力: 使用 Config::Player::GRAVITY
+    _velocity.y -= Config::Player::GRAVITY * dt;
+
+    // 终端速度: 使用 Config::Player::MAX_FALL_SPEED
+    if (_velocity.y < Config::Player::MAX_FALL_SPEED)
+        _velocity.y = Config::Player::MAX_FALL_SPEED;
+
+    float dy = _velocity.y * dt;
+    this->setPositionY(this->getPositionY() + dy);
+}
+
+void Player::updateCollisionX(const std::vector<cocos2d::Rect>& platforms)
+{
+    Rect playerRect = getCollisionBox();
+    for (const auto& wall : platforms)
+    {
+        if (playerRect.intersectsRect(wall))
+        {
+            float overlapY = std::min(playerRect.getMaxY(), wall.getMaxY()) -
+                std::max(playerRect.getMinY(), wall.getMinY());
+
+            if (overlapY > playerRect.size.height * 0.5f)
+            {
+                if (_velocity.x > 0)
+                    this->setPositionX(wall.getMinX() - _bodySize.width * 0.5f - _bodyOffset.x - 0.1f);
+                else if (_velocity.x < 0)
+                    this->setPositionX(wall.getMaxX() + _bodySize.width * 0.5f - _bodyOffset.x + 0.1f);
+            }
+        }
+    }
+}
+
+void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
+{
+    _isOnGround = false;
+    Rect playerRect = getCollisionBox();
+
+    for (const auto& platform : platforms)
+    {
+        if (playerRect.intersectsRect(platform))
+        {
+            float overlapX = std::min(playerRect.getMaxX(), platform.getMaxX()) -
+                std::max(playerRect.getMinX(), platform.getMinX());
+
+            if (overlapX > playerRect.size.width * 0.1f)
+            {
+                if (_velocity.y <= 0)
+                {
+                    float tolerance = 40.0f;
+                    float overlapY = platform.getMaxY() - playerRect.getMinY();
+
+                    if (overlapY > -0.1f && overlapY <= tolerance)
+                    {
+                        this->setPositionY(platform.getMaxY() - _bodyOffset.y - 1.0f);
+                        _velocity.y = 0;
+                        _isOnGround = true;
+                    }
+                }
+                else if (_velocity.y > 0)
+                {
+                    float tolerance = 20.0f;
+                    float overlapY = playerRect.getMaxY() - platform.getMinY();
+                    if (overlapY > 0 && overlapY <= tolerance)
+                    {
+                        this->setPositionY(platform.getMinY() - _bodySize.height - _bodyOffset.y);
+                        _velocity.y = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =================================================================
+//  8. 辅助函数
+// =================================================================
+cocos2d::Rect Player::getCollisionBox() const
+{
+    Vec2 worldPos = this->getPosition();
+    return Rect(
+        worldPos.x + _localBodyRect.origin.x,
+        worldPos.y + _localBodyRect.origin.y,
+        _localBodyRect.size.width,
+        _localBodyRect.size.height
+    );
 }
 
 cocos2d::Rect Player::getAttackHitbox() const
 {
-    if (_currentState != State::SLASHING) return Rect::ZERO;
-
-    // 【修改】增大攻击判定框
-    float attackRange = 150.0f;   // 从 120.0f 改为 150.0f
-    float attackHeight = 90.0f;   // 从 70.0f 改为 90.0f
-    float innerOffset = 20.0f;
-
     Vec2 pos = this->getPosition();
-    float startY = pos.y + _bodyOffset.y + 10.0f;
 
-    float startX;
-    if (_isFacingRight) {
-        startX = pos.x - innerOffset;
+    // ================== 上劈判定 ==================
+    if (_currentAttackDir == 1)
+    {
+        float w = 100.0f;
+        float h = 130.0f;
+        float startX = pos.x - w / 2 + _bodyOffset.x;
+        // Y轴：从头顶往下一点点开始，向上延伸
+        float startY = pos.y + _bodySize.height + _bodyOffset.y - 30.0f;
+        return Rect(startX, startY, w, h);
     }
+
+    // ================== 下劈判定 ==================
+    else if (_currentAttackDir == -1)
+    {
+        float w = 100.0f;
+        float h = 120.0f;
+        // X轴：居中
+        float startX = pos.x - w / 2 + _bodyOffset.x;
+
+        // Y轴：【关键调整】
+        // 让判定框从“脚踝以上”就开始，一直延伸到“脚底以下很深”
+        // pos.y + _bodyOffset.y 是脚底板位置
+        // 我们让它从脚底板 向上 40像素开始，向下延伸 120像素
+        // 这样即使敌人和主角重叠（在身体里），也能砍到
+        float startY = pos.y + _bodyOffset.y - h + 40.0f;
+
+        return Rect(startX, startY, w, h);
+    }
+
+    // ================== 水平判定 (原逻辑) ==================
+    // 1. 参数配置 (根据手感调整)
     else {
-        startX = pos.x + innerOffset - attackRange;
-    }
+        float attackRange = 140.0f; // 【修改】刀长从120增加到140
+        float attackHeight = 70.0f; // 刀高
+        float innerOffset = 20.0f;  // 向身后延伸一点点，防止贴身打不到
 
-    return Rect(startX, startY, attackRange, attackHeight);
-}
+        float startY = pos.y + _bodyOffset.y + 10.0f;
+        float startX = _isFacingRight ? (pos.x - innerOffset) : (pos.x + innerOffset - attackRange);
 
-// =================================================================
-//  6. 资源加载
-// =================================================================
-void Player::initAnimations()
-{
-    Vector<SpriteFrame*> idleFrames;
-    for (int i = 1; i <= 9; i++)
-    {
-        std::string filename = StringUtils::format("Knight/idle/idle_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) idleFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!idleFrames.empty())
-    {
-        _idleAnim = Animation::createWithSpriteFrames(idleFrames, 0.15f);
-        _idleAnim->retain();
-    }
-
-    Vector<SpriteFrame*> runFrames;
-    for (int i = 1; i <= 13; i++)
-    {
-        std::string filename = StringUtils::format("Knight/run/run_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) runFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!runFrames.empty())
-    {
-        _runAnim = Animation::createWithSpriteFrames(runFrames, 0.15f);
-        _runAnim->retain();
-    }
-
-    Vector<SpriteFrame*> dashFrames;
-    for (int i = 1; i <= 12; i++)
-    {
-        std::string filename = StringUtils::format("Knight/dash/dash_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) dashFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!dashFrames.empty())
-    {
-        _dashAnim = Animation::createWithSpriteFrames(dashFrames, 0.15f);
-        _dashAnim->retain();
-    }
-
-    Vector<SpriteFrame*> jumpFrames;
-    for (int i = 1; i <= 6; i++)
-    {
-        std::string filename = StringUtils::format("Knight/jump/jump_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) jumpFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!jumpFrames.empty())
-    {
-        _jumpAnim = Animation::createWithSpriteFrames(jumpFrames, 0.15f);
-        _jumpAnim->retain();
-    }
-
-    Vector<SpriteFrame*> fallFrames;
-    for (int i = 1; i <= 6; i++)
-    {
-        std::string filename = StringUtils::format("Knight/fall/fall_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) fallFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!fallFrames.empty())
-    {
-        _fallAnim = Animation::createWithSpriteFrames(fallFrames, 0.15f);
-        _fallAnim->retain();
-    }
-
-    // 【新增】攻击动画
-    Vector<SpriteFrame*> slashFrames;
-    for (int i = 1; i <= 6; i++)
-    {
-        std::string filename = StringUtils::format("Knight/slash/slash_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) slashFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!slashFrames.empty())
-    {
-        _slashAnim = Animation::createWithSpriteFrames(slashFrames, 0.04f);
-        _slashAnim->retain();
-    }
-
-    // 【新增】攻击特效动画
-    Vector<SpriteFrame*> slashEffectFrames;
-    for (int i = 1; i <= 6; i++)
-    {
-        std::string filename = StringUtils::format("Knight/slash/slashEffect/slashEffect_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) slashEffectFrames.pushBack(sprite->getSpriteFrame());
-    }
-    if (!slashEffectFrames.empty())
-    {
-        _slashEffectAnim = Animation::createWithSpriteFrames(slashEffectFrames, 0.04f);
-        _slashEffectAnim->retain();
-    }
-
-    Vector<SpriteFrame*> damageFrames;
-    for (int i = 1; i <= 4; i++)
-    {
-        std::string filename = StringUtils::format("knight/damage/damage_%d.png", i);
-        auto sprite = Sprite::create(filename);
-        if (sprite) 
-        {
-            damageFrames.pushBack(sprite->getSpriteFrame());
-            CCLOG("  ✓ Loaded damage frame: %s", filename.c_str());
-        }
-        else
-        {
-            CCLOG("  ✗ Failed to load damage frame: %s", filename.c_str());
-        }
-    }
-    if (!damageFrames.empty())
-    {
-        _damageAnim = Animation::createWithSpriteFrames(damageFrames, 0.1f);
-        _damageAnim->retain();
-        CCLOG("✓ Damage animation created with %d frames", (int)damageFrames.size());
-        
-        // 【修改】计算受伤动画和站立动画的高度差，并减少补偿让主角显得更低
-        Size idleSize = this->getContentSize();  // 站立动画的尺寸
-        Size damageSize = damageFrames.at(0)->getOriginalSize();  // 受伤动画的尺寸
-        float calculatedOffset = idleSize.height - damageSize.height;
-        
-        // 【新增】减少50%的高度补偿，让受伤时主角更贴近地面
-        _damageAnimHeightOffset = calculatedOffset * 0.5f;
-        
-        CCLOG("✓ Animation height offset calculated: idle=%f, damage=%f, raw_offset=%f, final_offset=%f", 
-              idleSize.height, damageSize.height, calculatedOffset, _damageAnimHeightOffset);
-    }
-    else
-    {
-        _damageAnim = nullptr;
-        _damageAnimHeightOffset = 0.0f;
-        CCLOG("✗ Damage animation failed to load!");
+        return Rect(startX, startY, attackRange, attackHeight);
     }
 }
 
-// ======================================================================
-// 【优化】玩家受伤逻辑
-// ======================================================================
-void Player::takeDamage(int damage)
+void Player::drawDebugRects()
 {
-    if (_isInvincible)
+    if (!_debugNode) return;
+    _debugNode->clear();
+
+    Size size = this->getContentSize();
+    // 因为 DrawNode 原点是左下角，而锚点在 (0.5, 0)
+    // 所以锚点相对于 DrawNode 的位置是 (宽的一半, 0)
+    Vec2 centerOffset = Vec2(size.width * 0.5f, 0.0f);
+    // A. 画物理框 (实心绿)
+    Vec2 greenMin = _localBodyRect.origin + centerOffset;
+    Vec2 greenMax = greenMin + _localBodyRect.size;
+    _debugNode->drawSolidRect(greenMin, greenMax, Color4F(0, 1, 0, 0.4f));
+
+    // B. 画图片轮廓 (空心蓝)
+    _debugNode->drawRect(Vec2::ZERO, Vec2(size.width, size.height), Color4F(0, 0, 1, 0.5f));
+
+    // C. 画锚点位置 (品红点)
+    _debugNode->drawDot(centerOffset, 5.0f, Color4F::MAGENTA);
+
+    // D. 画攻击判定框 (红色)
+    if (_debugNode) // 建议加个判断防止崩溃
     {
-        CCLOG("[Player] Invincible! Ignoring damage.");
-        return;
-    }
+        // --- 1. 参数 ---
+        float attackRange = 120.0f;
+        float attackHeight = 70.0f;
+        float innerOffset = 20.0f;
 
-    _health -= damage;
-    CCLOG("💔 Player took %d damage! Health: %d/%d", damage, _health, _maxHealth);
+        // --- 2. Y 轴计算 ---
+        float startY = 0 + _bodyOffset.y + 10.0f;
 
-    // ========================================
-    // 1. 切换到受伤状态（高度补偿在 changeState 中自动处理）
-    // ========================================
-    changeState(State::DAMAGED);
-
-    // ========================================
-    // 2. 【修改】增强击退效果
-    // ========================================
-    float knockbackSpeedX = 150.0f;  // 【修改】从 150.0f 提升到 250.0f，击退更明显
-    float direction = _isFacingRight ? -1.0f : 1.0f;
-    
-    _velocity.x = direction * knockbackSpeedX;
-    _velocity.y = 0.0f;  // 垂直速度清零
-
-    CCLOG("[Damage] Knockback: vx=%.1f, vy=0", _velocity.x);
-
-    // ========================================
-    // 3. 【修改】延长击退持续时间，让击退距离更远
-    // ========================================
-    this->scheduleOnce([this](float dt) {
-        _velocity.x = 0;
-        CCLOG("[Damage] Knockback ended");
-    }, 0.5f, "knockback_end");  // 【修改】从 0.2f 改为 0.3f，击退时间更长
-
-    // ========================================
-    // 4. 动画播放完毕后恢复 IDLE（高度恢复在 changeState 中自动处理）
-    // ========================================
-    this->scheduleOnce([this](float dt) {
-        if (_currentState == State::DAMAGED)
-        {
-            changeState(State::IDLE, true);
-            CCLOG("[Player] Damage animation finished, returning to IDLE.");
+        // --- 3. X 轴计算 ---
+        float startX;
+        if (_isFacingRight) {
+            // 这里用到了 size
+            startX = (size.width / 2) - innerOffset;
         }
-    }, 0.4f, "damage_anim_end");
+        else {
+            // 这里也用到了 size
+            startX = (size.width / 2) + innerOffset - attackRange;
+        }
 
-    // ========================================
-    // 5. 进入无敌状态（1秒）
-    // ========================================
-    _isInvincible = true;
+        // --- 4. 绘制 ---
+        Vec2 origin(startX, startY);
+        Vec2 dest(startX + attackRange, startY + attackHeight);
 
-    // 【修改】1秒后结束无敌（从2秒改为1秒）
-    this->scheduleOnce([this](float dt) {
-        _isInvincible = false;
-        CCLOG("[Player] Invincibility ended (1 second).");
-    }, 1.0f, "invincibility_end");  // 从 2.0f 改为 1.0f
-
-    // ========================================
-    // 6. 检查死亡
-    // ========================================
-    if (_health <= 0)
-    {
-        CCLOG("☠ Player is dead!");
+        // 注意：DrawNode 是画在 Player 节点内部的，所以坐标是相对坐标，不要加 getPosition()
+        _debugNode->drawRect(origin, dest, Color4F(1, 0, 0, 0.6f));
     }
+
 }

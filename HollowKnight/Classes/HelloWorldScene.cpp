@@ -1,7 +1,10 @@
-ï»¿#include "HelloWorldScene.h"
+#include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
-#include "Zombie.h"  // â† æ·»åŠ è¿™ä¸€è¡Œ
+#include "Zombie.h"
+#include "Spike.h"
+#include "Buzzer.h"
+#include "HUDLayer.h"
 
 USING_NS_CC;
 
@@ -13,9 +16,9 @@ Scene* HelloWorld::createScene()
 
 void HelloWorld::parseMapCollisions(TMXTiledMap* map)
 {
-    _groundRects.clear(); // å…ˆæ¸…ç©º
+    _groundRects.clear(); // ÏÈÇå¿Õ
 
-    // 1. è·å–å¯¹è±¡å±‚
+    // 1. »ñÈ¡¶ÔÏó²ã
     auto objectGroup = map->getObjectGroup("collision");
 
     if (objectGroup == nullptr) {
@@ -23,21 +26,21 @@ void HelloWorld::parseMapCollisions(TMXTiledMap* map)
         return;
     }
 
-    // 2. è·å–å±‚é‡Œæ‰€æœ‰çš„å¯¹è±¡
+    // 2. »ñÈ¡²ãÀïËùÓĞµÄ¶ÔÏó
     auto& objects = objectGroup->getObjects();
 
     for (auto& obj : objects)
     {
-        // obj æ˜¯ä¸€ä¸ª ValueMap (é”®å€¼å¯¹å­—å…¸)
+        // obj ÊÇÒ»¸ö ValueMap (¼üÖµ¶Ô×Öµä)
         cocos2d::ValueMap& dict = obj.asValueMap();
 
-        // 3. è¯»å–åæ ‡å’Œå®½é«˜
+        // 3. ¶ÁÈ¡×ø±êºÍ¿í¸ß
         float x = dict["x"].asFloat();
         float y = dict["y"].asFloat();
         float w = dict["width"].asFloat();
         float h = dict["height"].asFloat();
 
-        // 4. åˆ›å»º Rect å¹¶å­˜èµ·æ¥
+        // 4. ´´½¨ Rect ²¢´æÆğÀ´
         Rect rect = Rect(x, y, w, h);
         _groundRects.push_back(rect);
 
@@ -52,22 +55,32 @@ bool HelloWorld::init()
         return false;
     }
 
-    // ã€ä¿®æ”¹ã€‘è°ƒæ•´æ”¾å¤§å€æ•°ä¸º 1.5 å€
-    float zoomScale = 1.5f;  // ä» 2.0f æ”¹ä¸º 1.5f
-    this->setScale(zoomScale);
-
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
-    //////////////////////////////////////////////////////////////////////
-    // 1. èƒŒæ™¯
-    //////////////////////////////////////////////////////////////////////
-    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255));
-    this->addChild(bgLayer, -100);
+    // ============================================================
+    // 1. ¡¾ºËĞÄĞŞ¸Ä¡¿´´½¨ÓÎÏ·ÈİÆ÷²ã
+    // ============================================================
+    _gameLayer = Layer::create();
+
+    // °ÑËõ·ÅÓ¦ÓÃÔÚ GameLayer ÉÏ£¬¶ø²»ÊÇÕû¸ö Scene
+    // ÕâÑù UI ¾Í²»»á±»·Å´ó£¬±£³Ö¸ßÇå£¡
+    float zoomScale = 1.5f;
+    _gameLayer->setScale(zoomScale);
+
+    // ÓÎÏ·²ã ZĞòµÍ (1)£¬·ÅÔÚÏÂÃæ
+    this->addChild(_gameLayer, 1);
 
     //////////////////////////////////////////////////////////////////////
-    // 2. åŠ è½½åœ°å›¾
+    // 1. ±³¾°
     //////////////////////////////////////////////////////////////////////
+    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // ÉÔÎ¢µ÷°µÒ»µã£¬¸üÓĞ·ÕÎ§
+    _gameLayer->addChild(bgLayer, -100);
+
+    //////////////////////////////////////////////////////////////////////
+    // 2. ¼ÓÔØµØÍ¼
+    //////////////////////////////////////////////////////////////////////
+    // È·±£ÄãµÄ Resources/maps/level1.tmx ÎÄ¼ş´æÔÚ
     auto map = TMXTiledMap::create("maps/level1.tmx");
 
     if (map == nullptr)
@@ -79,60 +92,212 @@ bool HelloWorld::init()
         map->setAnchorPoint(Vec2(0, 0));
         map->setPosition(Vec2(0, 0));
         map->setTag(123);
-        this->addChild(map, -99);
+        _gameLayer->addChild(map, -99);
 
-        //è§£æç¢°æ’æ•°æ®
+        //½âÎöÅö×²Êı¾İ
         this->parseMapCollisions(map);
 
-        // =================ã€è°ƒè¯•ä»£ç å¼€å§‹ã€‘=================
-       // åˆ›å»ºä¸€ä¸ª DrawNode ç”¨æ¥ç”»çº¢æ¡†
+        // =================¡¾µ÷ÊÔ´úÂë¿ªÊ¼¡¿=================
+       // ´´½¨Ò»¸ö DrawNode ÓÃÀ´»­ºì¿ò
         auto drawNode = DrawNode::create();
-        this->addChild(drawNode, 999);
+        _gameLayer->addChild(drawNode, 999); // ZĞòÉè¸ßÒ»µã£¬±£Ö¤»­ÔÚ×îÉÏÃæ
 
         for (const auto& rect : _groundRects)
         {
+            // »­ºìÉ«¿ÕĞÄ¾ØĞÎ
+            // rect.origin ÊÇ×óÏÂ½Ç£¬rect.origin + rect.size ÊÇÓÒÉÏ½Ç
             drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
         }
-        // =================ã€è°ƒè¯•ä»£ç ç»“æŸã€‘=================
+        // =================¡¾µ÷ÊÔ´úÂë½áÊø¡¿=================
         //////////////////////////////////////////////////////////////////////
         // 
-        // 3. åˆ›å»ºæ•Œäºº
+        // 3. ´´½¨µĞÈË
         //////////////////////////////////////////////////////////////////////
         auto enemy = Enemy::create("enemies/enemy_walk_1.png");
+
         if (enemy)
         {
+            // ·ÅÔÚµØÍ¼µÄÒ»¸öÆ½Ì¨ÉÏ
             enemy->setPosition(Vec2(600, 430));
             enemy->setPatrolRange(500, 800);
             enemy->setTag(999);
-            this->addChild(enemy, 5);
+            // ¡¾¸Ä¡¿¼Óµ½ _gameLayer
+            _gameLayer->addChild(enemy, 5);
             CCLOG("Enemy spawned!");
         }
 
-        // ========================================
-        // ã€æ–°å¢ã€‘åˆ›å»º Zombie æ•Œäºº
-        // ========================================
+        // ´´½¨ Zombie µĞÈË
         auto zombie = Zombie::create("zombie/walk/walk_1.png");
         if (zombie)
         {
-            zombie->setPosition(Vec2(900, 430));
-            zombie->setPatrolRange(800, 1200);
+            // ¡¾ĞŞ¸Ä¡¿È·±£ Zombie Éú³ÉÔÚµØÃæÉÏ£¨Ê¹ÓÃÓë Enemy ÏàÍ¬µÄ¸ß¶È»ò¸ü¸ßÎ»ÖÃ£©
+            // 430 ÊÇ Enemy µÄÎ»ÖÃ£¬ÒÑÖªÊÇÓĞĞ§µÄµØÃæ¸ß¶È
+            zombie->setPosition(Vec2(1200, 430));  // ĞŞ¸ÄX×ø±ê£¬Ê¹ÓÃÏàÍ¬µÄY×ø±ê
+            zombie->setPatrolRange(1000, 1400);     // µ÷ÕûÑ²Âß·¶Î§
             zombie->setTag(998);
-            this->addChild(zombie, 5);
-            CCLOG("Zombie spawned!");
+            _gameLayer->addChild(zombie, 5);
+            CCLOG("Zombie spawned at position (1200, 430)!");
+        }
+
+        // ´´½¨ Spike ÏİÚå
+        // ¡¾ĞŞ¸Ä¡¿ÏÈ³¢ÊÔÔ¤¼ÓÔØÎÆÀí
+        auto textureCache = Director::getInstance()->getTextureCache();
+        auto spikeTexture = textureCache->addImage("traps/spike.png");
+        
+        Spike* spike = nullptr;
+        
+        if (spikeTexture)
+        {
+            CCLOG("========== TEXTURE PRE-LOAD ==========");
+            CCLOG("Texture loaded successfully!");
+            CCLOG("Texture size: %.0fx%.0f", 
+                  spikeTexture->getContentSize().width,
+                  spikeTexture->getContentSize().height);
+            CCLOG("Texture pixel format: %d", (int)spikeTexture->getPixelFormat());
+            CCLOG("=====================================");
+            
+            // Ê¹ÓÃÔ¤¼ÓÔØµÄÎÆÀí´´½¨Spike
+            spike = Spike::create("traps/spike.png");
+        }
+        else
+        {
+            CCLOG("========== TEXTURE LOAD FAILED ==========");
+            CCLOG("Failed to load texture: traps/spike.png");
+            CCLOG("Trying alternative: Using enemy texture as fallback");
+            CCLOG("=========================================");
+            
+            // ¡¾±¸ÓÃ·½°¸¡¿Èç¹ûspike.png¼ÓÔØÊ§°Ü£¬Ê¹ÓÃenemyÍ¼Æ¬²âÊÔ
+            spike = Spike::create("enemies/enemy_walk_1.png");
+        }
+        
+        if (spike)
+        {
+            // ÉèÖÃ´ÌµÄÎ»ÖÃ£¨ĞŞ¸ÄÎªÓÃ»§Ö¸¶¨µÄ×ø±ê£©
+            Vec2 spikePos = Vec2(3590.0f, 1000.0f);
+            spike->setInitialPosition(spikePos);
+            spike->setTag(997);
+            
+            // ¡¾ĞŞ¸´¡¿ÉèÖÃÃªµãÎªÖĞĞÄ£¨Ä¬ÈÏÖµ£©
+            spike->setAnchorPoint(Vec2(0.5f, 0.5f));
+            
+            // ¡¾µ÷ÊÔ¡¿È·±£Spike¿É¼û£¬Ê¹ÓÃÔ­Ê¼´óĞ¡
+            spike->setVisible(true);
+            spike->setOpacity(255);
+            spike->setScale(1.0f); 
+            
+            // ¡¾ĞÂÔö¡¿ÉèÖÃÑÕÉ«Îª°×É«£¬È·±£ÎÆÀíÕı³£ÏÔÊ¾
+            spike->setColor(Color3B::WHITE);
+            
+            // ¡¾ĞÂÔö¡¿Ç¿ÖÆÉèÖÃ»ìºÏÄ£Ê½
+            spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
+            
+            _gameLayer->addChild(spike, 5);
+            
+            // ¡¾ÒÆ³ı¡¿²»ÔÙĞèÒª°×É«±³¾°²âÊÔ
+            // auto bgSprite = Sprite::create();
+            // bgSprite->setTextureRect(Rect(0, 0, 150, 350)); // ±ÈSpikeÉÔ´ó
+            // bgSprite->setColor(Color3B::WHITE);
+            // bgSprite->setPosition(spikePos);
+            // bgSprite->setOpacity(200); // °ëÍ¸Ã÷
+            // _gameLayer->addChild(bgSprite, 4); // ZĞòÔÚSpikeÏÂÃæ
+            CCLOG("Added white background sprite behind Spike for visibility test");
+            
+            // ¡¾ĞÂÔö¡¿ÔÚÆÁÄ»ÉÏÏÔÊ¾SpikeĞÅÏ¢
+            if (_spikeDebugLabel)
+            {
+                auto tex = spike->getTexture();
+                char debugText[250];
+                sprintf(debugText, "Spike:(%.0f,%.0f) Tex:%s Size:(%.0fx%.0f) Visible:%d Op:%d", 
+                    spike->getPosition().x, spike->getPosition().y,
+                    tex ? "OK" : "NULL",
+                    spike->getContentSize().width, spike->getContentSize().height,
+                    spike->isVisible(), spike->getOpacity());
+                _spikeDebugLabel->setString(debugText);
+                _spikeDebugLabel->setColor(tex ? Color3B::GREEN : Color3B::RED);
+            }
+            
+            CCLOG("========== SPIKE DEBUG INFO ==========");
+            CCLOG("Spike created successfully!");
+            CCLOG("Spike position set to: (%.2f, %.2f)", spikePos.x, spikePos.y);
+            CCLOG("Spike actual position: (%.2f, %.2f)", spike->getPosition().x, spike->getPosition().y);
+            CCLOG("Spike ContentSize: w=%.2f, h=%.2f", 
+                  spike->getContentSize().width, spike->getContentSize().height);
+            CCLOG("Spike AnchorPoint: (%.2f, %.2f)", spike->getAnchorPoint().x, spike->getAnchorPoint().y);
+            CCLOG("Spike Scale: %.2f", spike->getScale());
+            CCLOG("Spike Color: (%d, %d, %d)", spike->getColor().r, spike->getColor().g, spike->getColor().b);
+            CCLOG("Spike Visible: %d, Opacity: %d", spike->isVisible(), spike->getOpacity());
+            CCLOG("Spike ZOrder: %d", spike->getLocalZOrder());
+            CCLOG("GameLayer scale: %.2f", _gameLayer->getScale());
+            
+            // ¡¾ĞÂÔö¡¿¼ì²éÎÆÀíÊÇ·ñ¼ÓÔØ³É¹¦
+            auto texture = spike->getTexture();
+            if (texture)
+            {
+                CCLOG("Spike Texture: OK");
+                CCLOG("  - Texture size: %.0fx%.0f", 
+                      texture->getContentSize().width, 
+                      texture->getContentSize().height);
+                CCLOG("  - Pixel format: %d", (int)texture->getPixelFormat());
+                CCLOG("  - Has mipmaps: %d", texture->hasMipmaps());
+                CCLOG("  - Has premultiplied alpha: %d", texture->hasPremultipliedAlpha());
+            }
+            else
+            {
+                CCLOG("Spike Texture: FAILED! Texture is NULL");
+            }
+            CCLOG("Note: Image size is 61x156 pixels, scaled 2x for visibility");
+            CCLOG("=====================================");
+        }
+        else
+        {
+            CCLOG("========== ERROR ==========");
+            CCLOG("ERROR: Failed to create Spike!");
+            CCLOG("Image path: traps/spike.png");
+            CCLOG("===========================");
+            
+            if (_spikeDebugLabel)
+            {
+                _spikeDebugLabel->setString("Spike: FAILED to create!");
+                _spikeDebugLabel->setColor(Color3B::RED);
+            }
         }
     }
 
+    // ========================================
+    // ¡¾ĞÂÔö¡¿´´½¨ Buzzer ·ÉĞĞµĞÈË
+    // ========================================
+    // Buzzer 1 - Î»ÖÃÔÚµØÍ¼ÓÒ²àÆ«ÉÏ
+    auto buzzer1 = Buzzer::create("buzzer/idle/idle_1.png");
+    if (buzzer1)
+    {
+        Vec2 buzzer1Pos = Vec2(4000.0f, 900.0f); // ¡¾ĞŞ¸Ä¡¿´Ó(3200,800)ÓÒÒÆµ½(3800,900)
+        buzzer1->setInitialPosition(buzzer1Pos);
+        buzzer1->setTag(996);  // tag 996
+        _gameLayer->addChild(buzzer1, 5);
+        CCLOG("Buzzer 1 spawned at position (3800, 900)!");
+    }
+    
+    // Buzzer 2 - Î»ÖÃÔÚµØÍ¼ÓÒ²àÆ«ÏÂ£¬ÓëBuzzer1Ïà¾àÒ»¶¨¾àÀë
+    auto buzzer2 = Buzzer::create("buzzer/idle/idle_1.png");
+    if (buzzer2)
+    {
+        Vec2 buzzer2Pos = Vec2(6000.0f, 700.0f); // ¡¾ĞŞ¸Ä¡¿´Ó(3500,600)ÓÒÒÆµ½(4400,700)£¬Ôö¼Ó¼ä¾à
+        buzzer2->setInitialPosition(buzzer2Pos);
+        buzzer2->setTag(995);  // tag 995
+        _gameLayer->addChild(buzzer2, 5);
+        CCLOG("Buzzer 2 spawned at position (4400, 700)!");
+    }
+
     //////////////////////////////////////////////////////////////////////
-    // 4. åˆ›å»ºä¸»è§’ (Player)
+    // 4. ´´½¨Ö÷½Ç (Player)
     //////////////////////////////////////////////////////////////////////
-    // æ–‡ä»¶åå¦‚æœæ‰¾ä¸åˆ°ä¼šç”¨é»˜è®¤çš„ï¼Œç¡®ä¿ Knight/idle_1.png å­˜åœ¨
     _player = Player::create("Knight/idle/idle_1.png");
 
     if (_player)
     {
-        // è®¾ç½®å‡ºç”Ÿç‚¹ (æ ¹æ®ä½ çš„åœ°å›¾è°ƒæ•´)
-        _player->setPosition(Vec2(400, 730));
-        this->addChild(_player, 10); // Zåº 10ï¼Œä¿è¯åœ¨æœ€å‰é¢
+        // ÉèÖÃ³öÉúµã (¸ù¾İµØÍ¼µ÷Õû)
+        _player->setPosition(Vec2(400, 1300));
+        _gameLayer->addChild(_player, 10);
         CCLOG("Player created successfully!");
     }
     else
@@ -140,15 +305,37 @@ bool HelloWorld::init()
         CCLOG("Error: Failed to create Player!");
     }
 
+    // ========================================
+    // ¡¾ĞÂÔö¡¿´´½¨ UI ²ã
+    // ========================================
+    auto hudLayer = HUDLayer::createLayer();
+    hudLayer->setTag(900);
+
+    // ZĞòÉèÎª 100£¬±£Ö¤ÓÀÔ¶¸ÇÔÚµØÍ¼ºÍÖ÷½ÇÉÏÃæ
+    this->addChild(hudLayer, 100);
+
+    // ========================================
+    // ¡¾¹Ø¼ü¡¿Á¬½Ó Player ºÍ HUD
+    // ========================================
+    // ÕâÊÇÒ»¸ö Lambda ±í´ïÊ½£¬µ± Player ÑªÁ¿±äÁË£¬¾Í»áÖ´ĞĞ´óÀ¨ºÅÀïµÄ´úÂë
+    _player->setOnHealthChanged([=](int hp, int maxHp) {
+        hudLayer->updateHealth(hp, maxHp);
+        });
+
+    // ÊÖ¶¯´¥·¢Ò»´Î£¬ÈÃ UI ³õÊ¼»¯ÏÔÊ¾ÂúÑª
+    // ×¢Òâ£ºÕâÀï _player »¹Ã»¶Á Config£¬È·±£ _health ÒÑ¾­ÓĞÖµÁË
+    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth()); // ÄãĞèÒªÔÚ Player.h ¼Ó getter
+
     //////////////////////////////////////////////////////////////////////
-    // 5. é”®ç›˜ç›‘å¬å™¨
+    // 5. ¼üÅÌ¼àÌıÆ÷
     //////////////////////////////////////////////////////////////////////
+
     auto listener = EventListenerKeyboard::create();
 
-    // --- æŒ‰ä¸‹æŒ‰é”® ---
+    // --- °´ÏÂ°´¼ü ---
     listener->onKeyPressed = [=](EventKeyboard::KeyCode code, Event* event) {
 
-        // å¦‚æœä¸»è§’ä¸å­˜åœ¨ï¼Œç›´æ¥è¿”å›ï¼Œé˜²æ­¢å´©æºƒ
+        // Èç¹ûÖ÷½Ç²»´æÔÚ£¬Ö±½Ó·µ»Ø£¬·ÀÖ¹±ÀÀ£
         if (_player == nullptr) return;
 
         switch (code)
@@ -156,54 +343,44 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = true;
-            updatePlayerMovement();
+            updatePlayerMovement(); // ¸üĞÂ×´Ì¬
             break;
 
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = true;
-            updatePlayerMovement();
+            updatePlayerMovement(); // ¸üĞÂ×´Ì¬            
+            break;
+
+        case EventKeyboard::KeyCode::KEY_W:
+        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+            _isUpPressed = true;
+            updatePlayerMovement(); // ¸üĞÂ×´Ì¬
+            break;
+
+        case EventKeyboard::KeyCode::KEY_S:
+        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+            _isDownPressed = true;
+            updatePlayerMovement(); // ¸üĞÂ×´Ì¬
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE: // ç©ºæ ¼è·³è·ƒ
-            _player->startJump();  // ã€ä¿®æ”¹ã€‘ä» jump() æ”¹ä¸º startJump()
+        case EventKeyboard::KeyCode::KEY_SPACE: // ¿Õ¸ñÌøÔ¾
+            _player->setJumpPressed(true);
             break;
 
         case EventKeyboard::KeyCode::KEY_J:
-        case EventKeyboard::KeyCode::KEY_X:  // ã€æ–°å¢ã€‘æ”¯æŒ X é”®æ”»å‡»
+        case EventKeyboard::KeyCode::KEY_X:
         {
-            _player->attack();
-
-            Rect attackBox = _player->getAttackHitbox();
-
-            // æ”»å‡»æ™®é€šæ•Œäºº
-            auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
-            if (enemy)
-            {
-                if (attackBox.intersectsRect(enemy->getHitbox()))
-                {
-                    CCLOG("HIT! Player hit the Enemy!");
-                    enemy->takeDamage(1);
-                }
-            }
-
-            // æ”»å‡» Zombie
-            auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
-            if (zombie)
-            {
-                if (attackBox.intersectsRect(zombie->getHitbox()))
-                {
-                    CCLOG("HIT! Player hit the Zombie!");
-                    zombie->takeDamage(1);
-                }
-            }
+            // µ÷ÓÃÖ÷½Ç¹¥»÷¶¯»­
+            _player->setAttackPressed(true);
         }
         break;
         }
-        };
 
-    // --- æ¾å¼€æŒ‰é”® ---
+    };
+
+    // --- ËÉ¿ª°´¼ü ---
     listener->onKeyReleased = [=](EventKeyboard::KeyCode code, Event* event) {
         if (_player == nullptr) return;
 
@@ -212,18 +389,32 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = false;
-            updatePlayerMovement();
+            updatePlayerMovement(); // ÖØĞÂ¼ÆËãÒÆ¶¯·½Ïò
             break;
-            
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = false;
-            updatePlayerMovement();
+            updatePlayerMovement(); // ÖØĞÂ¼ÆËãÒÆ¶¯·½Ïò
+            break;
+        case EventKeyboard::KeyCode::KEY_W:
+        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+            _isUpPressed = false;
+            updatePlayerMovement(); // ÖØĞÂ¼ÆËãÒÆ¶¯·½Ïò
+            break;
+        case EventKeyboard::KeyCode::KEY_S:
+        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+            _isDownPressed = false;
+            updatePlayerMovement(); // ÖØĞÂ¼ÆËãÒÆ¶¯·½Ïò
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
         case EventKeyboard::KeyCode::KEY_SPACE:
-            _player->stopJump();  // ã€æ–°å¢ã€‘æ¾å¼€è·³è·ƒé”®
+            _player->setJumpPressed(false);
+            break;
+
+		case EventKeyboard::KeyCode::KEY_J:
+        case EventKeyboard::KeyCode::KEY_X:
+            _player->setAttackPressed(false);
             break;
         }
     };
@@ -231,7 +422,7 @@ bool HelloWorld::init()
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
     //////////////////////////////////////////////////////////////////////
-    // 6. é€€å‡ºæŒ‰é’®
+    // 6. ÍË³ö°´Å¥
     //////////////////////////////////////////////////////////////////////
     auto closeItem = MenuItemImage::create(
         "CloseNormal.png",
@@ -247,115 +438,373 @@ bool HelloWorld::init()
 
     auto menu = Menu::create(closeItem, NULL);
     menu->setPosition(Vec2::ZERO);
-    this->addChild(menu, 100); // UI æ”¾åœ¨æœ€é¡¶å±‚
+    this->addChild(menu, 100); // UI ·ÅÔÚ×î¶¥²ã
 
-    // å¼€å¯ Updateï¼Œç”¨äºç›¸æœºè·Ÿéš
+    // ========================================
+    // ¡¾ĞÂÔö¡¿´´½¨×ø±êÏÔÊ¾±êÇ©
+    // ========================================
+    _coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
+    _coordLabel->setColor(Color3B::YELLOW);
+    _coordLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 50));
+    _coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    this->addChild(_coordLabel, 200); // ·ÅÔÚ×î¶¥²ã£¬È·±£¿É¼û
+
+    // ========================================
+    // ¡¾ĞÂÔö¡¿´´½¨Spikeµ÷ÊÔĞÅÏ¢±êÇ©
+    // ========================================
+    _spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
+    _spikeDebugLabel->setColor(Color3B::RED);
+    _spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
+    _spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    this->addChild(_spikeDebugLabel, 200);
+
+    // ========================================
+    // ¡¾ĞÂÔö¡¿´´½¨µ÷ÊÔDrawNode£¨ÓÃÓÚ»æÖÆSpikeºì¿ò£©
+    // ========================================
+    _debugDrawNode = DrawNode::create();
+    this->addChild(_debugDrawNode, 150); // ZĞòÔÚ×ø±ê±êÇ©ÏÂÃæ
+
+    // ¿ªÆô Update£¬ÓÃÓÚÏà»ú¸úËæ
     this->scheduleUpdate();
 
     return true;
 }
 
-void HelloWorld::update(float dt)
+void HelloWorld::updatePlayerMovement()
 {
     if (!_player) return;
-    
-    auto map = this->getChildByTag(123);
-    if (!map) return;
 
-    // ========================================
-    // 1. é¦–å…ˆæ›´æ–°ç©å®¶ä½ç½®
-    // ========================================
-    _player->update(dt, _groundRects);
+    // 1. ¼ÆËãÊäÈë·½Ïò
+    // ×ó¼ü(-1) + ÓÒ¼ü(+1)
+    // Èç¹ûÍ¬Ê±°´×¡£¬½á¹ûÎª 0 (Í£)£»Ö»°´×óÊÇ -1£»Ö»°´ÓÒÊÇ 1
+    int dirX = 0,dirY=0;
+    if (_isLeftPressed)  dirX -= 1;
+    if (_isRightPressed) dirX += 1;
 
-    // ========================================
-    // 2. ã€ä¿®å¤ã€‘ç›¸æœºç«‹å³è·Ÿéšç©å®¶
-    // ========================================
-    Vec2 playerPos = _player->getPosition();
+    if (_isUpPressed) dirY+= 1;
+    if (_isDownPressed) dirY -= 1;
+ 
+    // 2. ½«¡°ÒâÍ¼¡±´«¸ø Player
+    // Player ÄÚ²¿µÄ×´Ì¬»ú (StateRun/StateIdle) »á×Ô¶¯¶ÁÈ¡Õâ¸öÖµ
+    // Èç¹ûÊÇ 0£¬×´Ì¬»ú×Ô¶¯ÇĞ»Ø Idle£»Èç¹ûÊÇ -1/1£¬×´Ì¬»ú×Ô¶¯ÇĞÎª Run ²¢ÒÆ¶¯
+    _player->setInputDirectionX(dirX);
+    _player->setInputDirectionY(dirY);
+}
 
-    Size visibleSize = Director::getInstance()->getVisibleSize();
-    Size mapSize = map->getContentSize();
-    float scaleValue = this->getScale();
-    
-    // ã€å…³é”®ä¿®å¤ã€‘ç›¸æœºåç§»éœ€è¦ä¹˜ä»¥ç¼©æ”¾å› å­
-    // å› ä¸º Scene è¢«ç¼©æ”¾äº†ï¼ŒsetPosition çš„å•ä½ä¹Ÿè¢«ç¼©æ”¾äº†
-    float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
-    float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
-    
-    // ã€è¾¹ç•Œé™åˆ¶ã€‘ç¡®ä¿ç›¸æœºä¸è¶…å‡ºåœ°å›¾è¾¹ç•Œï¼ˆåŒæ ·éœ€è¦è€ƒè™‘ç¼©æ”¾ï¼‰
-    float scaledMapWidth = mapSize.width * scaleValue;
-    float scaledMapHeight = mapSize.height * scaleValue;
-    
-    float minX = -(scaledMapWidth - visibleSize.width);
-    float maxX = 0.0f;
-    float minY = -(scaledMapHeight - visibleSize.height);
-    float maxY = 0.0f;
-    
-    if (scaledMapWidth > visibleSize.width) {
-        targetX = std::max(minX, std::min(targetX, maxX));
-    } else {
-        targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
-    }
-    
-    if (scaledMapHeight > visibleSize.height) {
-        targetY = std::max(minY, std::min(targetY, maxY));
-    } else {
-        targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
-    }
-    
-    // ã€ç›´æ¥åº”ç”¨ã€‘ç«‹å³è®¾ç½®ç›¸æœºä½ç½®
-    this->setPosition(targetX, targetY);
-
-    // ========================================
-    // æ™®é€šæ•Œäººæ›´æ–°å’Œç¢°æ’æ£€æµ‹
-    // ========================================
-    auto enemy = dynamic_cast<Enemy*>(this->getChildByTag(999));
-    if (enemy)
+// Ã¿Ö¡¸üĞÂ£ºÊµÏÖÏà»ú¸úËæ
+void HelloWorld::update(float dt)
+{
+    auto map = _gameLayer->getChildByTag(123);
+    if (_player && map)
     {
-        // ã€ä¿®å¤ã€‘å…ˆè·å–ç¢°æ’ç®±ï¼Œå¦‚æœä¸ºç©ºåˆ™è·³è¿‡ç¢°æ’æ£€æµ‹
-        Rect enemyBox = enemy->getHitbox();
-        
-        // åªæœ‰å½“æ•Œäººç¢°æ’ç®±æœ‰æ•ˆæ—¶æ‰è¿›è¡Œç¢°æ’æ£€æµ‹
-        if (!enemyBox.equals(Rect::ZERO))
-        {
-            Rect playerBox = _player->getCollisionBox();
+        if (!_player || !_gameLayer) return;
 
-            if (playerBox.intersectsRect(enemyBox))
+        auto map = _gameLayer->getChildByTag(123);
+        if (!map) return;
+
+        // ========================================
+       // 1. Ê×ÏÈ¸üĞÂÍæ¼ÒÎ»ÖÃ
+       // ========================================
+        _player->update(dt, _groundRects);
+
+        // ========================================
+    // 2. »ñÈ¡Íæ¼ÒÎ»ÖÃ²¢¸üĞÂ×ø±êÏÔÊ¾
+    // ========================================
+        Vec2 playerPos = _player->getPosition();
+
+        // ¡¾ĞÂÔö¡¿¸üĞÂ×ø±êÏÔÊ¾
+        if (_coordLabel)
+        {
+            char coordText[100];
+            sprintf(coordText, "Player: (%.0f, %.0f)", playerPos.x, playerPos.y);
+            _coordLabel->setString(coordText);
+        }
+
+        // ========================================
+    // 3. Ïà»úÁ¢¼´¸úËæÍæ¼Ò
+    // ========================================
+        Size visibleSize = Director::getInstance()->getVisibleSize();
+        Size mapSize = map->getContentSize();
+        // »ñÈ¡Ëõ·Å±ÈÀı (ÏÖÔÚÊÇ _gameLayer ÔÚËõ·Å)
+        float scaleValue = _gameLayer->getScale();
+
+        // Ïà»úÆ«ÒÆĞèÒª³ËÒÔËõ·ÅÒò×Ó
+      // ÒòÎª Scene ±»Ëõ·ÅÁË£¬setPosition µÄµ¥Î»Ò²±»Ëõ·ÅÁË
+        float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
+        float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
+
+        // ¡¾±ß½çÏŞÖÆ¡¿È·±£Ïà»ú²»³¬³öµØÍ¼±ß½ç£¨Í¬ÑùĞèÒª¿¼ÂÇËõ·Å£©
+        float scaledMapWidth = mapSize.width * scaleValue;
+        float scaledMapHeight = mapSize.height * scaleValue;
+
+        float minX = -(scaledMapWidth - visibleSize.width);
+        float maxX = 0.0f;
+        float minY = -(scaledMapHeight - visibleSize.height);
+        float maxY = 0.0f;
+
+        if (scaledMapWidth > visibleSize.width) {
+            targetX = std::max(minX, std::min(targetX, maxX));
+        }
+        else {
+            targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
+        }
+
+        if (scaledMapHeight > visibleSize.height) {
+            targetY = std::max(minY, std::min(targetY, maxY));
+        }
+        else {
+            targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
+        }
+
+        // ============================================================
+        // ¡¾ĞŞ¸Ä¡¿Ö»ÒÆ¶¯ÓÎÏ·²ã
+        // ============================================================
+        _gameLayer->setPosition(targetX, targetY);
+
+        // ========================================
+		// 3. ¡¾ĞŞ¸´¡¿ĞŞ¸Ä Enemy Åö×²¼ì²âÂß¼­
+        // ========================================
+        auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
+        if (enemy)
+        {
+            // »ñÈ¡Åö×²Ïä£¬Èç¹ûÎª¿ÕÔòÌø¹ıÅö×²¼ì²â
+            Rect enemyBox = enemy->getHitbox();
+
+            // Ö»ÓĞµ±µĞÈËÅö×²ÏäÓĞĞ§Ê±²Å½øĞĞÅö×²¼ì²â
+            if (!enemyBox.equals(Rect::ZERO))
             {
-                enemy->onCollideWithPlayer(playerPos);
-                
-                if (!_player->isInvincible())
+				bool isEnemyHit = false;
+				// 1.¡¾ĞŞ¸´¡¿Ê×ÏÈ¼ì²â¹¥»÷ÊÇ·ñÃüÖĞµĞÈË
+                if (_player->isAttackPressed())
                 {
-                    CCLOG("âš  Player collided with Enemy!");
-                    _player->takeDamage(1);
+                    Rect attackBox = _player->getAttackHitbox();
+
+                    if (attackBox.intersectsRect(enemyBox))
+                    {
+                        CCLOG("HIT! Player hit the Enemy!");
+                        enemy->takeDamage(1, _player->getPosition());  // ´«ÈëÍæ¼ÒÎ»ÖÃ
+						isEnemyHit = true;  // ±ê¼ÇµĞÈË±»»÷ÖĞ
+
+						// Èç¹ûµĞÈË±»»÷ÖĞ£¬Íæ¼ÒÖ´ĞĞ pogo ÌøÔ¾
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+				// 2.¡¾ĞŞ¸´¡¿¼ì²âµĞÈËÊÇ·ñÓëÍæ¼ÒÅö×²
+                if (!isEnemyHit) {  // Ö»ÓĞµ±µĞÈËÎ´±»¹¥»÷ÃüÖĞÊ±²Å¼ì²âÅö×²
+                    Rect playerBox = _player->getCollisionBox();
+
+                    if (playerBox.intersectsRect(enemyBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG(" Player collided with Enemy!");
+                            _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
+							enemy->onCollideWithPlayer(_player->getPosition()); // ÈÃµĞÈË·´Ó¦Åö×²
+                        }
+                    }
                 }
             }
         }
-    }
 
-    // ========================================
-    // Zombie æ•Œäººæ›´æ–°å’Œç¢°æ’æ£€æµ‹
-    // ========================================
-    auto zombie = dynamic_cast<Zombie*>(this->getChildByTag(998));
-    if (zombie)
-    {
-        zombie->update(dt, playerPos);
-
-        // ã€ä¿®å¤ã€‘å…ˆè·å–ç¢°æ’ç®±ï¼Œå¦‚æœä¸ºç©ºåˆ™è·³è¿‡ç¢°æ’æ£€æµ‹
-        Rect zombieBox = zombie->getHitbox();
-        
-        // åªæœ‰å½“åƒµå°¸ç¢°æ’ç®±æœ‰æ•ˆæ—¶æ‰è¿›è¡Œç¢°æ’æ£€æµ‹
-        if (!zombieBox.equals(Rect::ZERO))
+        // ========================================
+        // 4.¡¾ĞŞ¸´¡¿Zombie µĞÈË¸üĞÂºÍÅö×²¼ì²â
+        // ========================================
+        auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
+        if (zombie)
         {
-            Rect playerBox = _player->getCollisionBox();
+            zombie->update(dt, playerPos, _groundRects);
+            // ÏÈ»ñÈ¡Åö×²Ïä£¬Èç¹ûÎª¿ÕÔòÌø¹ıÅö×²¼ì²â
+            Rect zombieBox = zombie->getHitbox();
 
-            if (playerBox.intersectsRect(zombieBox))
+            if (!zombieBox.equals(Rect::ZERO))
             {
-                zombie->onCollideWithPlayer(playerPos);
-                
-                if (!_player->isInvincible())
+				bool isZombieHit = false;
+                if (_player->isAttackPressed())
                 {
-                    CCLOG("âš  Player collided with Zombie!");
-                    _player->takeDamage(1);
+                    Rect attackBox = _player->getAttackHitbox();
+                    if (attackBox.intersectsRect(zombieBox))
+                    {
+                        CCLOG("HIT! Player hit the Zombie!");
+                        zombie->takeDamage(1, _player->getPosition());  // ´«ÈëÍæ¼ÒÎ»ÖÃ
+                        isZombieHit = true;
+
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+
+                // B. Body Collision
+                if (!isZombieHit)
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(zombieBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player collided with Zombie body!");
+                            _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
+                            zombie->onCollideWithPlayer(_player->getPosition());
+                        }
+                    }
+                }
+            }
+        }
+
+        // ========================================
+        // 5.¡¾ĞÂÔö¡¿Spike ÏİÚå¸üĞÂºÍÅö×²¼ì²â
+        // ========================================
+        auto spike = dynamic_cast<Spike*>(_gameLayer->getChildByTag(997));
+        if (spike)
+        {
+            // ¸üĞÂ´ÌµÄ×´Ì¬£¨¼ì²âÍæ¼ÒÊÇ·ñÔÚÏÂ·½£¬Ó¦ÓÃÖØÁ¦µÈ£©
+            spike->update(dt, playerPos, _groundRects);
+
+            // ¡¾ĞÂÔö¡¿¸üĞÂÆÁÄ»ÉÏµÄSpikeµ÷ÊÔĞÅÏ¢
+            if (_spikeDebugLabel)
+            {
+                char debugText[200];
+                int state = (int)spike->getHitbox().equals(Rect::ZERO) ? -1 : 0;
+                sprintf(debugText, "Spike:(%.0f,%.0f) State:%d Visible:%d", 
+                    spike->getPosition().x, spike->getPosition().y,
+                    state, spike->isVisible());
+                _spikeDebugLabel->setString(debugText);
+            }
+
+            // ¡¾µ÷ÊÔ¡¿ÔÚScene×ø±êÏµÖĞ»æÖÆSpikeµÄÎ»ÖÃ
+            if (_debugDrawNode)
+            {
+                _debugDrawNode->clear(); // Çå³ıÖ®Ç°µÄ»æÖÆ
+                
+                
+            }
+
+            // »ñÈ¡´ÌµÄÅö×²Ïä
+            Rect spikeBox = spike->getHitbox();
+
+            if (!spikeBox.equals(Rect::ZERO))
+            {
+                // ¼ì²âÍæ¼ÒÊÇ·ñÓë´ÌÅö×²
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(spikeBox))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player hit by Spike!");
+                        _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
+                        // ´ÌÔì³ÉÉËº¦ºó¿ÉÒÔÑ¡ÔñÏûÊ§»ò±£³Ö
+                        // spike->changeState(Spike::State::DEAD);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Spike²»´æÔÚ
+            if (_spikeDebugLabel)
+            {
+                _spikeDebugLabel->setString("Spike: NOT FOUND (tag 997)");
+                _spikeDebugLabel->setColor(Color3B::RED);
+            }
+        }
+
+        // ========================================
+        // 6.¡¾ĞÂÔö¡¿Buzzer ·ÉĞĞµĞÈË¸üĞÂºÍÅö×²¼ì²â
+        // ========================================
+        // Buzzer 1 (tag 996)
+        auto buzzer1 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(996));
+        if (buzzer1)
+        {
+            // ¸üĞÂBuzzer AI
+            buzzer1->update(dt, playerPos);
+            
+            // »ñÈ¡Åö×²Ïä
+            Rect buzzer1Box = buzzer1->getHitbox();
+            
+            if (!buzzer1Box.equals(Rect::ZERO))
+            {
+                bool isBuzzer1Hit = false;
+                
+                // A. ¹¥»÷¼ì²â
+                if (_player->isAttackPressed())
+                {
+                    Rect attackBox = _player->getAttackHitbox();
+                    if (attackBox.intersectsRect(buzzer1Box))
+                    {
+                        CCLOG("HIT! Player hit Buzzer 1!");
+                        buzzer1->takeDamage(1, _player->getPosition());
+                        isBuzzer1Hit = true;
+                        
+                        // ÏÂÅüÊ±pogoÌøÔ¾
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+                
+                // B. ÉíÌåÅö×²
+                if (!isBuzzer1Hit)
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(buzzer1Box))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player collided with Buzzer 1!");
+                            _player->takeDamage(1, _groundRects);
+                            buzzer1->onCollideWithPlayer(_player->getPosition()); // ¡¾ĞÂÔö¡¿ÈÃBuzzer»÷ÍË
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Buzzer 2 (tag 995)
+        auto buzzer2 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(995));
+        if (buzzer2)
+        {
+            // ¸üĞÂBuzzer AI
+            buzzer2->update(dt, playerPos);
+            
+            // »ñÈ¡Åö×²Ïä
+            Rect buzzer2Box = buzzer2->getHitbox();
+            
+            if (!buzzer2Box.equals(Rect::ZERO))
+            {
+                bool isBuzzer2Hit = false;
+                
+                // A. ¹¥»÷¼ì²â
+                if (_player->isAttackPressed())
+                {
+                    Rect attackBox = _player->getAttackHitbox();
+                    if (attackBox.intersectsRect(buzzer2Box))
+                    {
+                        CCLOG("HIT! Player hit Buzzer 2!");
+                        buzzer2->takeDamage(1, _player->getPosition());
+                        isBuzzer2Hit = true;
+                        
+                        // ÏÂÅüÊ±pogoÌøÔ¾
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+                
+                // B. ÉíÌåÅö×²
+                if (!isBuzzer2Hit)
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(buzzer2Box))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player collided with Buzzer 2!");
+                            _player->takeDamage(1, _groundRects);
+                            buzzer2->onCollideWithPlayer(_player->getPosition()); // ¡¾ĞÂÔö¡¿ÈÃBuzzer»÷ÍË
+                        }
+                    }
                 }
             }
         }
@@ -365,25 +814,4 @@ void HelloWorld::update(float dt)
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();
-}
-
-// ã€æ–°å¢ã€‘å¤„ç†ç©å®¶ç§»åŠ¨çš„è¾…åŠ©å‡½æ•°
-void HelloWorld::updatePlayerMovement()
-{
-    if (!_player) return;
-
-    if (_isLeftPressed && _isRightPressed) {
-        // åŒæ—¶æŒ‰ä½å·¦å³é”®ï¼Œåœæ­¢ç§»åŠ¨
-        _player->stopMove();
-    }
-    else if (_isLeftPressed) {
-        _player->moveLeft();
-    }
-    else if (_isRightPressed) {
-        _player->moveRight();
-    }
-    else {
-        // ä¸¤ä¸ªéƒ½æ²¡æŒ‰ï¼Œåœæ­¢ç§»åŠ¨
-        _player->stopMove();
-    }
 }

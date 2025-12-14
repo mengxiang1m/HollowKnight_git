@@ -23,8 +23,8 @@ public:
     // 每帧更新
     void update(float dt) override;
 
-    // 受击处理
-    void takeDamage(int damage);
+    // 受击处理（接收攻击者位置以计算正确的击退方向）
+    void takeDamage(int damage, const cocos2d::Vec2& attackerPos);
 
     // 设置巡逻范围
     void setPatrolRange(float leftBound, float rightBound);
@@ -57,6 +57,9 @@ private:
     // 属性
     int _health;                // 生命值
     int _maxHealth;             // 最大生命值
+
+	// 【修复】受击无敌时间
+    bool _isInvincible = false;
 
     // 动画缓存
     cocos2d::Animation* _walkAnimation;
