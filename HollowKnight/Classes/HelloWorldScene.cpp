@@ -5,6 +5,8 @@
 #include "Spike.h"
 #include "Buzzer.h"
 #include "HUDLayer.h"
+#include "Jar.h"
+#include "Fireball.h"  // 【新增】
 
 USING_NS_CC;
 
@@ -72,231 +74,118 @@ bool HelloWorld::init()
     this->addChild(_gameLayer, 1);
 
     //////////////////////////////////////////////////////////////////////
-    // 1. 背景
+    // 2. 背景
     //////////////////////////////////////////////////////////////////////
     auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // 稍微调暗一点，更有氛围
     _gameLayer->addChild(bgLayer, -100);
 
     //////////////////////////////////////////////////////////////////////
-    // 2. 加载地图
+    // 3. 【重构】使用loadMap方法加载level1
     //////////////////////////////////////////////////////////////////////
-    // 确保你的 Resources/maps/level1.tmx 文件存在
-    auto map = TMXTiledMap::create("maps/level1.tmx");
+    loadMap("maps/level1.tmx");
 
-    if (map == nullptr)
+    //////////////////////////////////////////////////////////////////////
+    // 4. 【重构】只在level1创建敌人
+    //////////////////////////////////////////////////////////////////////
+    // 创建 Enemy
+    auto enemy = Enemy::create("enemies/enemy_walk_1.png");
+    if (enemy)
     {
-        CCLOG("Error: Failed to load maps/level1.tmx");
+        enemy->setPosition(Vec2(600, 430));
+        enemy->setPatrolRange(500, 800);
+        enemy->setTag(999);
+        _gameLayer->addChild(enemy, 5);
+        CCLOG("Enemy spawned!");
+    }
+
+    // 创建 Zombie 敌人
+    auto zombie = Zombie::create("zombie/walk/walk_1.png");
+    if (zombie)
+    {
+        zombie->setPosition(Vec2(1200, 430));
+        zombie->setPatrolRange(1000, 1400);
+        zombie->setTag(998);
+        _gameLayer->addChild(zombie, 5);
+        CCLOG("Zombie spawned at position (1200, 430)!");
+    }
+
+    // 创建 Spike 陷阱
+    auto textureCache = Director::getInstance()->getTextureCache();
+    auto spikeTexture = textureCache->addImage("traps/spike.png");
+    
+    Spike* spike = nullptr;
+    
+    if (spikeTexture)
+    {
+        CCLOG("========== TEXTURE PRE-LOAD ==========");
+        CCLOG("Texture loaded successfully!");
+        CCLOG("Texture size: %.0fx%.0f", 
+              spikeTexture->getContentSize().width,
+              spikeTexture->getContentSize().height);
+        CCLOG("Texture pixel format: %d", (int)spikeTexture->getPixelFormat());
+        CCLOG("=====================================");
+        
+        spike = Spike::create("traps/spike.png");
     }
     else
     {
-        map->setAnchorPoint(Vec2(0, 0));
-        map->setPosition(Vec2(0, 0));
-        map->setTag(123);
-        _gameLayer->addChild(map, -99);
-
-        //解析碰撞数据
-        this->parseMapCollisions(map);
-
-        // =================【调试代码开始】=================
-       // 创建一个 DrawNode 用来画红框
-        auto drawNode = DrawNode::create();
-        _gameLayer->addChild(drawNode, 999); // Z序设高一点，保证画在最上面
-
-        for (const auto& rect : _groundRects)
-        {
-            // 画红色空心矩形
-            // rect.origin 是左下角，rect.origin + rect.size 是右上角
-            drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
-        }
-        // =================【调试代码结束】=================
-        //////////////////////////////////////////////////////////////////////
-        // 
-        // 3. 创建敌人
-        //////////////////////////////////////////////////////////////////////
-        auto enemy = Enemy::create("enemies/enemy_walk_1.png");
-
-        if (enemy)
-        {
-            // 放在地图的一个平台上
-            enemy->setPosition(Vec2(600, 430));
-            enemy->setPatrolRange(500, 800);
-            enemy->setTag(999);
-            // 【改】加到 _gameLayer
-            _gameLayer->addChild(enemy, 5);
-            CCLOG("Enemy spawned!");
-        }
-
-        // 创建 Zombie 敌人
-        auto zombie = Zombie::create("zombie/walk/walk_1.png");
-        if (zombie)
-        {
-            // 【修改】确保 Zombie 生成在地面上（使用与 Enemy 相同的高度或更高位置）
-            // 430 是 Enemy 的位置，已知是有效的地面高度
-            zombie->setPosition(Vec2(1200, 430));  // 修改X坐标，使用相同的Y坐标
-            zombie->setPatrolRange(1000, 1400);     // 调整巡逻范围
-            zombie->setTag(998);
-            _gameLayer->addChild(zombie, 5);
-            CCLOG("Zombie spawned at position (1200, 430)!");
-        }
-
-        // 创建 Spike 陷阱
-        // 【修改】先尝试预加载纹理
-        auto textureCache = Director::getInstance()->getTextureCache();
-        auto spikeTexture = textureCache->addImage("traps/spike.png");
+        CCLOG("========== TEXTURE LOAD FAILED ==========");
+        CCLOG("Failed to load texture: traps/spike.png");
+        CCLOG("Trying alternative: Using enemy texture as fallback");
+        CCLOG("=========================================");
         
-        Spike* spike = nullptr;
+        spike = Spike::create("enemies/enemy_walk_1.png");
+    }
+    
+    if (spike)
+    {
+        Vec2 spikePos = Vec2(3590.0f, 1000.0f);
+        spike->setInitialPosition(spikePos);
+        spike->setTag(997);
+        spike->setAnchorPoint(Vec2(0.5f, 0.5f));
+        spike->setVisible(true);
+        spike->setOpacity(255);
+        spike->setScale(1.0f); 
+        spike->setColor(Color3B::WHITE);
+        spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
         
-        if (spikeTexture)
-        {
-            CCLOG("========== TEXTURE PRE-LOAD ==========");
-            CCLOG("Texture loaded successfully!");
-            CCLOG("Texture size: %.0fx%.0f", 
-                  spikeTexture->getContentSize().width,
-                  spikeTexture->getContentSize().height);
-            CCLOG("Texture pixel format: %d", (int)spikeTexture->getPixelFormat());
-            CCLOG("=====================================");
-            
-            // 使用预加载的纹理创建Spike
-            spike = Spike::create("traps/spike.png");
-        }
-        else
-        {
-            CCLOG("========== TEXTURE LOAD FAILED ==========");
-            CCLOG("Failed to load texture: traps/spike.png");
-            CCLOG("Trying alternative: Using enemy texture as fallback");
-            CCLOG("=========================================");
-            
-            // 【备用方案】如果spike.png加载失败，使用enemy图片测试
-            spike = Spike::create("enemies/enemy_walk_1.png");
-        }
+        _gameLayer->addChild(spike, 5);
         
-        if (spike)
-        {
-            // 设置刺的位置（修改为用户指定的坐标）
-            Vec2 spikePos = Vec2(3590.0f, 1000.0f);
-            spike->setInitialPosition(spikePos);
-            spike->setTag(997);
-            
-            // 【修复】设置锚点为中心（默认值）
-            spike->setAnchorPoint(Vec2(0.5f, 0.5f));
-            
-            // 【调试】确保Spike可见，使用原始大小
-            spike->setVisible(true);
-            spike->setOpacity(255);
-            spike->setScale(1.0f); 
-            
-            // 【新增】设置颜色为白色，确保纹理正常显示
-            spike->setColor(Color3B::WHITE);
-            
-            // 【新增】强制设置混合模式
-            spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
-            
-            _gameLayer->addChild(spike, 5);
-            
-            // 【移除】不再需要白色背景测试
-            // auto bgSprite = Sprite::create();
-            // bgSprite->setTextureRect(Rect(0, 0, 150, 350)); // 比Spike稍大
-            // bgSprite->setColor(Color3B::WHITE);
-            // bgSprite->setPosition(spikePos);
-            // bgSprite->setOpacity(200); // 半透明
-            // _gameLayer->addChild(bgSprite, 4); // Z序在Spike下面
-            CCLOG("Added white background sprite behind Spike for visibility test");
-            
-            // 【新增】在屏幕上显示Spike信息
-            if (_spikeDebugLabel)
-            {
-                auto tex = spike->getTexture();
-                char debugText[250];
-                sprintf(debugText, "Spike:(%.0f,%.0f) Tex:%s Size:(%.0fx%.0f) Visible:%d Op:%d", 
-                    spike->getPosition().x, spike->getPosition().y,
-                    tex ? "OK" : "NULL",
-                    spike->getContentSize().width, spike->getContentSize().height,
-                    spike->isVisible(), spike->getOpacity());
-                _spikeDebugLabel->setString(debugText);
-                _spikeDebugLabel->setColor(tex ? Color3B::GREEN : Color3B::RED);
-            }
-            
-            CCLOG("========== SPIKE DEBUG INFO ==========");
-            CCLOG("Spike created successfully!");
-            CCLOG("Spike position set to: (%.2f, %.2f)", spikePos.x, spikePos.y);
-            CCLOG("Spike actual position: (%.2f, %.2f)", spike->getPosition().x, spike->getPosition().y);
-            CCLOG("Spike ContentSize: w=%.2f, h=%.2f", 
-                  spike->getContentSize().width, spike->getContentSize().height);
-            CCLOG("Spike AnchorPoint: (%.2f, %.2f)", spike->getAnchorPoint().x, spike->getAnchorPoint().y);
-            CCLOG("Spike Scale: %.2f", spike->getScale());
-            CCLOG("Spike Color: (%d, %d, %d)", spike->getColor().r, spike->getColor().g, spike->getColor().b);
-            CCLOG("Spike Visible: %d, Opacity: %d", spike->isVisible(), spike->getOpacity());
-            CCLOG("Spike ZOrder: %d", spike->getLocalZOrder());
-            CCLOG("GameLayer scale: %.2f", _gameLayer->getScale());
-            
-            // 【新增】检查纹理是否加载成功
-            auto texture = spike->getTexture();
-            if (texture)
-            {
-                CCLOG("Spike Texture: OK");
-                CCLOG("  - Texture size: %.0fx%.0f", 
-                      texture->getContentSize().width, 
-                      texture->getContentSize().height);
-                CCLOG("  - Pixel format: %d", (int)texture->getPixelFormat());
-                CCLOG("  - Has mipmaps: %d", texture->hasMipmaps());
-                CCLOG("  - Has premultiplied alpha: %d", texture->hasPremultipliedAlpha());
-            }
-            else
-            {
-                CCLOG("Spike Texture: FAILED! Texture is NULL");
-            }
-            CCLOG("Note: Image size is 61x156 pixels, scaled 2x for visibility");
-            CCLOG("=====================================");
-        }
-        else
-        {
-            CCLOG("========== ERROR ==========");
-            CCLOG("ERROR: Failed to create Spike!");
-            CCLOG("Image path: traps/spike.png");
-            CCLOG("===========================");
-            
-            if (_spikeDebugLabel)
-            {
-                _spikeDebugLabel->setString("Spike: FAILED to create!");
-                _spikeDebugLabel->setColor(Color3B::RED);
-            }
-        }
+        CCLOG("========== SPIKE DEBUG INFO ==========");
+        CCLOG("Spike created successfully!");
+        CCLOG("Spike position set to: (%.2f, %.2f)", spikePos.x, spikePos.y);
+        CCLOG("=====================================");
     }
 
-    // ========================================
-    // 【新增】创建 Buzzer 飞行敌人
-    // ========================================
-    // Buzzer 1 - 位置在地图右侧偏上
+    // 创建 Buzzer 飞行敌人
     auto buzzer1 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer1)
     {
-        Vec2 buzzer1Pos = Vec2(4000.0f, 900.0f); // 【修改】从(3200,800)右移到(3800,900)
+        Vec2 buzzer1Pos = Vec2(4000.0f, 900.0f);
         buzzer1->setInitialPosition(buzzer1Pos);
-        buzzer1->setTag(996);  // tag 996
+        buzzer1->setTag(996);
         _gameLayer->addChild(buzzer1, 5);
-        CCLOG("Buzzer 1 spawned at position (3800, 900)!");
+        CCLOG("Buzzer 1 spawned at position (4000, 900)!");
     }
     
-    // Buzzer 2 - 位置在地图右侧偏下，与Buzzer1相距一定距离
     auto buzzer2 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer2)
     {
-        Vec2 buzzer2Pos = Vec2(6000.0f, 700.0f); // 【修改】从(3500,600)右移到(4400,700)，增加间距
+        Vec2 buzzer2Pos = Vec2(6000.0f, 700.0f);
         buzzer2->setInitialPosition(buzzer2Pos);
-        buzzer2->setTag(995);  // tag 995
+        buzzer2->setTag(995);
         _gameLayer->addChild(buzzer2, 5);
-        CCLOG("Buzzer 2 spawned at position (4400, 700)!");
+        CCLOG("Buzzer 2 spawned at position (6000, 700)!");
     }
 
     //////////////////////////////////////////////////////////////////////
-    // 4. 创建主角 (Player)
+    // 5. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
     _player = Player::create("Knight/idle/idle_1.png");
 
     if (_player)
     {
-        // 设置出生点 (根据地图调整)
-        _player->setPosition(Vec2(400, 1300));
+        _player->setPosition(Vec2(6400, 1300));  // 【修改】玩家初始位置接近 level1 终点，方便测试
         _gameLayer->addChild(_player, 10);
         CCLOG("Player created successfully!");
     }
@@ -305,37 +194,27 @@ bool HelloWorld::init()
         CCLOG("Error: Failed to create Player!");
     }
 
-    // ========================================
-    // 【新增】创建 UI 层
-    // ========================================
+    //////////////////////////////////////////////////////////////////////
+    // 6. 创建 UI 层
+    //////////////////////////////////////////////////////////////////////
     auto hudLayer = HUDLayer::createLayer();
     hudLayer->setTag(900);
-
-    // Z序设为 100，保证永远盖在地图和主角上面
     this->addChild(hudLayer, 100);
 
-    // ========================================
-    // 【关键】连接 Player 和 HUD
-    // ========================================
-    // 这是一个 Lambda 表达式，当 Player 血量变了，就会执行大括号里的代码
+    // 连接 Player 和 HUD
     _player->setOnHealthChanged([=](int hp, int maxHp) {
         hudLayer->updateHealth(hp, maxHp);
-        });
+    });
 
-    // 手动触发一次，让 UI 初始化显示满血
-    // 注意：这里 _player 还没读 Config，确保 _health 已经有值了
-    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth()); // 你需要在 Player.h 加 getter
+    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth());
 
     //////////////////////////////////////////////////////////////////////
-    // 5. 键盘监听器
+    // 7. 键盘监听器
     //////////////////////////////////////////////////////////////////////
-
     auto listener = EventListenerKeyboard::create();
 
     // --- 按下按键 ---
     listener->onKeyPressed = [=](EventKeyboard::KeyCode code, Event* event) {
-
-        // 如果主角不存在，直接返回，防止崩溃
         if (_player == nullptr) return;
 
         switch (code)
@@ -343,41 +222,37 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = true;
-            updatePlayerMovement(); // 更新状态            
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_W:
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_S:
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
+        case EventKeyboard::KeyCode::KEY_SPACE:
             _player->setJumpPressed(true);
             break;
 
         case EventKeyboard::KeyCode::KEY_J:
         case EventKeyboard::KeyCode::KEY_X:
-        {
-            // 调用主角攻击动画
             _player->setAttackPressed(true);
+            break;
         }
-        break;
-        }
-
     };
 
     // --- 松开按键 ---
@@ -389,22 +264,22 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
         case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
         case EventKeyboard::KeyCode::KEY_W:
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
         case EventKeyboard::KeyCode::KEY_S:
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
@@ -412,7 +287,7 @@ bool HelloWorld::init()
             _player->setJumpPressed(false);
             break;
 
-		case EventKeyboard::KeyCode::KEY_J:
+        case EventKeyboard::KeyCode::KEY_J:
         case EventKeyboard::KeyCode::KEY_X:
             _player->setAttackPressed(false);
             break;
@@ -422,7 +297,7 @@ bool HelloWorld::init()
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
     //////////////////////////////////////////////////////////////////////
-    // 6. 退出按钮
+    // 8. 退出按钮
     //////////////////////////////////////////////////////////////////////
     auto closeItem = MenuItemImage::create(
         "CloseNormal.png",
@@ -438,31 +313,31 @@ bool HelloWorld::init()
 
     auto menu = Menu::create(closeItem, NULL);
     menu->setPosition(Vec2::ZERO);
-    this->addChild(menu, 100); // UI 放在最顶层
+    this->addChild(menu, 100);
 
-    // ========================================
-    // 【新增】创建坐标显示标签
-    // ========================================
+    //////////////////////////////////////////////////////////////////////
+    // 9. 创建坐标显示标签
+    //////////////////////////////////////////////////////////////////////
     _coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
     _coordLabel->setColor(Color3B::YELLOW);
     _coordLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 50));
     _coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
-    this->addChild(_coordLabel, 200); // 放在最顶层，确保可见
+    this->addChild(_coordLabel, 200);
 
-    // ========================================
-    // 【新增】创建Spike调试信息标签
-    // ========================================
+    //////////////////////////////////////////////////////////////////////
+    // 10. 创建Spike调试信息标签
+    //////////////////////////////////////////////////////////////////////
     _spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
     _spikeDebugLabel->setColor(Color3B::RED);
     _spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
     _spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
     this->addChild(_spikeDebugLabel, 200);
 
-    // ========================================
-    // 【新增】创建调试DrawNode（用于绘制Spike红框）
-    // ========================================
+    //////////////////////////////////////////////////////////////////////
+    // 11. 创建调试DrawNode
+    //////////////////////////////////////////////////////////////////////
     _debugDrawNode = DrawNode::create();
-    this->addChild(_debugDrawNode, 150); // Z序在坐标标签下面
+    this->addChild(_debugDrawNode, 150);
 
     // 开启 Update，用于相机跟随
     this->scheduleUpdate();
@@ -494,74 +369,101 @@ void HelloWorld::updatePlayerMovement()
 // 每帧更新：实现相机跟随
 void HelloWorld::update(float dt)
 {
+    if (!_player || !_gameLayer) return;
+
     auto map = _gameLayer->getChildByTag(123);
-    if (_player && map)
+    if (!map) return;
+
+    // ========================================
+    // 0. 【新增】检测玩家位置，触发场景切换
+    // ========================================
+    if (_currentLevel == 1 && !_isTransitioning)
     {
-        if (!_player || !_gameLayer) return;
+        Vec2 playerPos = _player->getPosition();
+        if (playerPos.x >= 6500.0f)
+        {
+            CCLOG("Player reached level1 end! Triggering level switch...");
+            switchToLevel2();
+            return;  // 立即返回，避免在切换过程中继续更新
+        }
+    }
 
-        auto map = _gameLayer->getChildByTag(123);
-        if (!map) return;
+    // ========================================
+    // 1. 首先更新玩家位置
+    // ========================================
+    // 【新增】动态添加罐子顶部平台到地面碰撞检测
+    std::vector<Rect> dynamicGroundRects = _groundRects;  // 复制原始地面碰撞
+    
+    // 将所有未被摧毁的罐子顶部平台添加到碰撞检测中
+    for (auto jar : _jars)
+    {
+        if (jar && !jar->isDestroyed())
+        {
+            Rect topPlatform = jar->getTopPlatformBox();
+            if (!topPlatform.equals(Rect::ZERO))
+            {
+                dynamicGroundRects.push_back(topPlatform);
+            }
+        }
+    }
+    
+    _player->update(dt, dynamicGroundRects);  // 使用包含罐子平台的碰撞列表
 
-        // ========================================
-       // 1. 首先更新玩家位置
-       // ========================================
-        _player->update(dt, _groundRects);
-
-        // ========================================
+    // ========================================
     // 2. 获取玩家位置并更新坐标显示
     // ========================================
-        Vec2 playerPos = _player->getPosition();
+    Vec2 playerPos = _player->getPosition();
 
-        // 【新增】更新坐标显示
-        if (_coordLabel)
-        {
-            char coordText[100];
-            sprintf(coordText, "Player: (%.0f, %.0f)", playerPos.x, playerPos.y);
-            _coordLabel->setString(coordText);
-        }
+    // 【新增】更新坐标显示
+    if (_coordLabel)
+    {
+        char coordText[100];
+        sprintf(coordText, "Player: (%.0f, %.0f)", playerPos.x, playerPos.y);
+        _coordLabel->setString(coordText);
+    }
 
-        // ========================================
+    // ========================================
     // 3. 相机立即跟随玩家
     // ========================================
-        Size visibleSize = Director::getInstance()->getVisibleSize();
-        Size mapSize = map->getContentSize();
-        // 获取缩放比例 (现在是 _gameLayer 在缩放)
-        float scaleValue = _gameLayer->getScale();
+    Size visibleSize = Director::getInstance()->getVisibleSize();
+    Size mapSize = map->getContentSize();
+    // 获取缩放比例 (现在是 _gameLayer 在缩放)
+    float scaleValue = _gameLayer->getScale();
 
-        // 相机偏移需要乘以缩放因子
-      // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
-        float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
-        float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
+    // 相机偏移需要乘以缩放因子
+  // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
+    float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
+    float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
 
-        // 【边界限制】确保相机不超出地图边界（同样需要考虑缩放）
-        float scaledMapWidth = mapSize.width * scaleValue;
-        float scaledMapHeight = mapSize.height * scaleValue;
+    // 【边界限制】确保相机不超出地图边界（同样需要考虑缩放）
+    float scaledMapWidth = mapSize.width * scaleValue;
+    float scaledMapHeight = mapSize.height * scaleValue;
 
-        float minX = -(scaledMapWidth - visibleSize.width);
-        float maxX = 0.0f;
-        float minY = -(scaledMapHeight - visibleSize.height);
-        float maxY = 0.0f;
+    float minX = -(scaledMapWidth - visibleSize.width);
+    float maxX = 0.0f;
+    float minY = -(scaledMapHeight - visibleSize.height);
+    float maxY = 0.0f;
 
-        if (scaledMapWidth > visibleSize.width) {
-            targetX = std::max(minX, std::min(targetX, maxX));
-        }
-        else {
-            targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
-        }
+    if (scaledMapWidth > visibleSize.width) {
+        targetX = std::max(minX, std::min(targetX, maxX));
+    }
+    else {
+        targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
+    }
 
-        if (scaledMapHeight > visibleSize.height) {
-            targetY = std::max(minY, std::min(targetY, maxY));
-        }
-        else {
-            targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
-        }
+    if (scaledMapHeight > visibleSize.height) {
+        targetY = std::max(minY, std::min(targetY, maxY));
+    }
+    else {
+        targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
+    }
 
-        // ============================================================
-        // 【修改】只移动游戏层
-        // ============================================================
-        _gameLayer->setPosition(targetX, targetY);
+    // ============================================================
+    // 【修改】只移动游戏层
+    // ============================================================
+    _gameLayer->setPosition(targetX, targetY);
 
-        // ========================================
+    // ========================================
 		// 3. 【修复】修改 Enemy 碰撞检测逻辑
         // ========================================
         auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
@@ -808,10 +710,269 @@ void HelloWorld::update(float dt)
                 }
             }
         }
-    }
+
+        // ========================================
+        // 7.【新增】Jar 罐子碰撞检测
+        // ========================================
+        for (auto jar : _jars)
+        {
+            if (!jar || jar->isDestroyed()) continue;
+            
+            // A. 玩家攻击罐子
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                Rect jarBox = jar->getCollisionBox();
+                
+                if (!jarBox.equals(Rect::ZERO) && attackBox.intersectsRect(jarBox))
+                {
+                    CCLOG("Player hit the jar!");
+                    jar->takeDamage();
+                    
+                    // 如果是下劈，执行 pogo 跳跃
+                    if (_player->getAttackDir() == -1) {
+                        _player->pogoJump();
+                    }
+                }
+            }
+            
+            // B. 玩家与罐子的物理碰撞（像墙一样阻挡）
+            if (!jar->isDestroyed())
+            {
+                Rect playerBox = _player->getCollisionBox();
+                Rect jarBox = jar->getCollisionBox();
+                
+                if (!jarBox.equals(Rect::ZERO) && playerBox.intersectsRect(jarBox))
+                {
+                    // 简单的推出处理（防止玩家穿过罐子）
+                    Vec2 playerPos = _player->getPosition();
+                    
+                    // 判断从哪个方向碰撞
+                    float overlapLeft = (playerBox.getMaxX() - jarBox.getMinX());
+                    float overlapRight = (jarBox.getMaxX() - playerBox.getMinX());
+                    
+                    if (overlapLeft < overlapRight)
+                    {
+                        // 从左边碰撞，推到左边
+                        _player->setPositionX(jarBox.getMinX() - playerBox.size.width / 2);
+                    }
+                    else
+                    {
+                        // 从右边碰撞，推到右边
+                        _player->setPositionX(jarBox.getMaxX() + playerBox.size.width / 2);
+                    }
+                    
+                    // 停止水平速度
+                    _player->setVelocityX(0);
+                }
+            }
+        }
 }
 
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();
+}
+
+// ========================================
+// 加载地图的通用方法
+// ========================================
+void HelloWorld::loadMap(const std::string& mapPath)
+{
+    // 1. 清除旧地图
+    auto oldMap = _gameLayer->getChildByTag(123);
+    if (oldMap)
+    {
+        oldMap->removeFromParent();
+        CCLOG("Old map removed");
+    }
+
+    // 2. 清除旧的碰撞框绘制节点
+    auto oldDrawNode = dynamic_cast<DrawNode*>(_gameLayer->getChildByTag(1000));
+    if (oldDrawNode)
+    {
+        oldDrawNode->removeFromParent();
+        CCLOG("Old DrawNode removed");
+    }
+
+    // 3. 清除旧的敌人（level1的敌人）
+    if (_currentLevel == 2)
+    {
+        // 移除 Enemy
+        auto enemy = _gameLayer->getChildByTag(999);
+        if (enemy) {
+            enemy->removeFromParent();
+            CCLOG("Enemy removed for level2");
+        }
+
+        // 移除 Zombie
+        auto zombie = _gameLayer->getChildByTag(998);
+        if (zombie) {
+            zombie->removeFromParent();
+            CCLOG("Zombie removed for level2");
+        }
+
+        // 移除 Spike
+        auto spike = _gameLayer->getChildByTag(997);
+        if (spike) {
+            spike->removeFromParent();
+            CCLOG("Spike removed for level2");
+        }
+
+        // 移除 Buzzer 1
+        auto buzzer1 = _gameLayer->getChildByTag(996);
+        if (buzzer1) {
+            buzzer1->removeFromParent();
+            CCLOG("Buzzer1 removed for level2");
+        }
+
+        // 移除 Buzzer 2
+        auto buzzer2 = _gameLayer->getChildByTag(995);
+        if (buzzer2) {
+            buzzer2->removeFromParent();
+            CCLOG("Buzzer2 removed for level2");
+        }
+        
+        // 【新增】移除旧的 Fireball（如果存在）
+        auto oldFireball = _gameLayer->getChildByTag(987);
+        if (oldFireball) {
+            oldFireball->removeFromParent();
+            CCLOG("Old Fireball removed for level2");
+        }
+    }
+
+    // 4. 加载新地图
+    auto map = TMXTiledMap::create(mapPath);
+    if (map == nullptr)
+    {
+        CCLOG("Error: Failed to load %s", mapPath.c_str());
+        return;
+    }
+
+    map->setAnchorPoint(Vec2(0, 0));
+    map->setPosition(Vec2(0, 0));
+    map->setTag(123);
+    _gameLayer->addChild(map, -99);
+
+    // 5. 解析碰撞数据
+    this->parseMapCollisions(map);
+
+    // 6. 绘制调试碰撞框
+    auto drawNode = DrawNode::create();
+    drawNode->setTag(1000);  // 给DrawNode设置tag，方便后续删除
+    _gameLayer->addChild(drawNode, 999);
+
+    for (const auto& rect : _groundRects)
+    {
+        drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
+    }
+
+    CCLOG("========== Map Loaded ==========");
+    CCLOG("Map: %s", mapPath.c_str());
+    CCLOG("Collision rects count: %lu", _groundRects.size());
+    CCLOG("================================");
+
+    // 【新增】如果是 level2，创建罐子和幼虫
+    if (_currentLevel == 2)
+    {
+        // 清空旧罐子列表
+        _jars.clear();
+        
+        // 在 X=1700 到 X=3100 之间均匀放置 3 个罐子
+        // 间距 = (3100 - 1700) / 2 = 700
+        float startX = 1700.0f;
+        float spacing = 700.0f;
+        float jarY = 346.0f;  // 【修改】罐子放在地面上（level2 地面高度）
+        
+        for (int i = 0; i < 3; i++)
+        {
+            float jarX = startX + i * spacing;
+            auto jar = Jar::create("warm/jar.png", Vec2(jarX, jarY));
+            
+            if (jar)
+            {
+                jar->setTag(990 - i);  // tags: 990, 989, 988
+                _gameLayer->addChild(jar, 5);
+                _jars.push_back(jar);
+                
+                CCLOG("Jar %d created at position (%.0f, %.0f)", i + 1, jarX, jarY);
+            }
+        }
+        
+        CCLOG("========== Level 2 Jars Created ==========");
+        CCLOG("Total jars: %lu", _jars.size());
+        CCLOG("==========================================");
+        
+        // 【新增】创建 Fireball 对象
+        auto fireball = Fireball::create("fireball/fireball_1.png");
+        if (fireball)
+        {
+            fireball->setPosition(Vec2(5529.0f, 650.0f));
+            fireball->setTag(987);  // 给 fireball 一个 tag
+            _gameLayer->addChild(fireball, 5);
+            CCLOG("Fireball created at position (5529, 500)");
+        }
+        else
+        {
+            CCLOG("Error: Failed to create Fireball");
+        }
+    }
+}
+
+// ========================================
+// 切换到Level2的方法
+// ========================================
+void HelloWorld::switchToLevel2()
+{
+    if (_isTransitioning || _currentLevel == 2) return;
+    
+    _isTransitioning = true;
+    CCLOG("========== Switching to Level 2 ==========");
+
+    // 1. 创建黑屏遮罩
+    auto blackLayer = LayerColor::create(Color4B::BLACK);
+    blackLayer->setOpacity(0);
+    this->addChild(blackLayer, 999);  // 最高层级，覆盖所有内容
+
+    // 2. 黑屏淡入动画序列
+    auto fadeIn = FadeTo::create(0.5f, 255);  // 0.5秒渐黑
+    
+    auto switchMap = CallFunc::create([this]() {
+        // 在黑屏时切换地图
+        CCLOG("Loading level2.tmx...");
+        
+        // 先更新关卡编号（这样loadMap就知道要清理敌人）
+        _currentLevel = 2;
+        
+        // 加载level2地图
+        loadMap("maps/level2.tmx");
+        
+        // 重置玩家位置到level2的起点（最左端）
+        if (_player)
+        {
+            _player->setPosition(Vec2(400, 1300));  // level2起点
+            _player->setVelocityX(0);  // 重置水平速度
+            CCLOG("Player repositioned to level2 start: (400, 1300)");
+        }
+    });
+    
+    auto delay = DelayTime::create(0.3f);  // 保持黑屏0.3秒
+    
+    auto fadeOut = FadeTo::create(0.5f, 0);  // 0.5秒渐亮
+    
+    auto cleanup = CallFunc::create([this, blackLayer]() {
+        blackLayer->removeFromParent();
+        _isTransitioning = false;
+        CCLOG("========== Level 2 loaded successfully ==========");
+    });
+
+    // 3. 执行动作序列
+    blackLayer->runAction(Sequence::create(
+        fadeIn,      // 渐黑
+        switchMap,   // 切换地图
+        delay,       // 保持黑屏
+        fadeOut,     // 渐亮
+        cleanup,     // 清理
+        nullptr
+    ));
 }

@@ -50,10 +50,13 @@ public:
 private: 
     Player* _player; 
 
-    //地图瓦片中的地面矩形引用
+    //地图切片中的地面碰撞框
     std::vector<cocos2d::Rect> _groundRects;
 
-    // 解析地图碰撞盒的辅助函数
+    // 【新增】罐子列表
+    std::vector<class Jar*> _jars;
+
+    // 解析地图碰撞框的辅助函数
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
     //输入状态标志位
@@ -73,6 +76,18 @@ private:
     
     // 【新增】Spike调试信息标签
     cocos2d::Label* _spikeDebugLabel;
+
+    // ========================================
+    // 【新增】场景切换相关成员变量
+    // ========================================
+    int _currentLevel = 1;           // 当前关卡编号
+    bool _isTransitioning = false;   // 是否正在场景切换
+
+    // ========================================
+    // 【新增】场景切换方法
+    // ========================================
+    void loadMap(const std::string& mapPath);  // 加载地图
+    void switchToLevel2();                      // 切换到level2
 };
 
 #endif // __HELLOWORLD_SCENE_H__
