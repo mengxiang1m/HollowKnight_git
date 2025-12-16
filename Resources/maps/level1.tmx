@@ -253,9 +253,9 @@
 </data>
  </layer>
  <objectgroup id="9" name="collision">
-  <object id="4" x="8" y="892" width="3322" height="380"/>
-  <object id="5" x="3330" y="966" width="521.333" height="312"/>
-  <object id="6" x="3852" y="894" width="2682" height="384"/>
+  <object id="4" x="10.6667" y="888" width="3322" height="356"/>
+  <object id="5" x="3334" y="966" width="508" height="316"/>
+  <object id="6" x="3844" y="891.333" width="2646" height="352"/>
  </objectgroup>
  <layer id="10" name="sky2" width="100" height="20">
   <data encoding="csv">
