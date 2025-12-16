@@ -4,9 +4,18 @@
 #include "cocos2d.h"
 
 namespace Config {
+    struct PlayerStatConfig {
+        int maxHealth = 5;       // 最大血量
+        int maxSoul = 4;         // 最大魂量
+        int healCost = 1;        // 回血消耗
+        int soulGainPerKill = 1; // 杀一个怪，回 1 点 (即 1/4 瓶)
+	};
+    // 全局默认配置实例
+    static const PlayerStatConfig DEFAULT_PLAYER_CFG;
+
     namespace Soul {
         // 动画参数
-        const float FRAME_SPEED = 0.14f;    // 每帧播放速度 (0.1秒一帧)
+        const float FRAME_SPEED = 0.18f;    // 每帧播放速度 (0.1秒一帧)
         const float LOOP_DELAY = 3.0f;     // 动画播放完后等待 3 秒再播
 
         // 1. 灵魂瓶外框 (6帧动画)
@@ -44,7 +53,6 @@ namespace Config {
     namespace Player {
         // 物理参数
         const float MOVE_SPEED = 300.0f;
-        const float JUMP_FORCE = 700.0f;
         const float GRAVITY = 2000.0f;
         const float MAX_FALL_SPEED = -1500.0f;
 
@@ -55,23 +63,29 @@ namespace Config {
 
         // 战斗参数
         const float ATTACK_COOLDOWN = 0.04f;
-        const int MAX_HEALTH = 5;
     }
 
     namespace Path {
-        static const char* PLAYER_IDLE = "Knight/idle/idle_%d.png";
-        static const char* PLAYER_RUN = "Knight/run/run_%d.png";
-        static const char* PLAYER_JUMP = "Knight/jump/jump_%d.png";
-        static const char* PLAYER_FALL = "Knight/fall/fall_%d.png";
-        static const char* PLAYER_SLASH = "Knight/slash/slash_%d.png";
-        static const char* PLAYER_SLASH_EFFECT = "Knight/slash/slashEffect/slashEffect_%d.png";
-        static const char* PLAYER_DAMAGE = "Knight/damage/damage_%d.png";
-        static const char* PLAYER_LOOKUP = "Knight/LookUp/LookUp_%d.png";
-        static const char* PLAYER_LOOKDOWN = "Knight/LookDown/LookDown_%d.png";
-        static const char* PLAYER_UPSLASH = "Knight/upslash/upslash_%d.png";
-        static const char* PLAYER_DOWNSLASH = "Knight/downslash/downslash_%d.png";
-        static const char* PLAYER_UP_SLASH_EFFECT = "Knight/upslash/upslasheffect/upslasheffect_%d.png";
-        static const char* PLAYER_DOWN_SLASH_EFFECT = "Knight/downslash/downslasheffect/downslasheffect_%d.png";
+        static const char* PLAYER_IDLE = "knight/idle/idle_%d.png";
+        static const char* PLAYER_RUN = "knight/run/run_%d.png";
+        static const char* PLAYER_JUMP = "knight/jump/jump_%d.png";
+        static const char* PLAYER_FALL = "knight/fall/fall_%d.png";
+        static const char* PLAYER_SLASH = "knight/slash/slash_%d.png";
+        static const char* PLAYER_SLASH_EFFECT = "knight/slash/slashEffect/slashEffect_%d.png";
+        static const char* PLAYER_DAMAGE = "knight/damage/damage_%d.png";
+        static const char* PLAYER_LOOKUP = "knight/LookUp/LookUp_%d.png";
+        static const char* PLAYER_LOOKDOWN = "knight/LookDown/LookDown_%d.png";
+        static const char* PLAYER_UPSLASH = "knight/upslash/upslash_%d.png";
+        static const char* PLAYER_DOWNSLASH = "knight/downslash/downslash_%d.png";
+        static const char* PLAYER_UP_SLASH_EFFECT = "knight/upslash/upslasheffect/upslasheffect_%d.png";
+        static const char* PLAYER_DOWN_SLASH_EFFECT = "knight/downslash/downslasheffect/downslasheffect_%d.png";
+        static const char* PLAYER_DEATH = "knight/death/death_%d.png";
+        static const char* PLAYER_FOCUS_LOOP = "knight/focus/focus_%d.png";
+        static const char* PLAYER_FOCUS_GET = "knight/focusGet/focusGet_%d.png";
+        static const char* PLAYER_FOCUS_END = "knight/focusEnd/focusEnd_%d.png";
+        static const char* PLAYER_DAMAGED = "knight/recoil/recoil_%d.png";
+        static const char* EFFECT_FOCUS_LOOP = "knight/focusGet/focusEffect/focusEffect_%d.png";
+        static const char* EFFECT_FOCUS_END = "knight/focusEnd/focusEffectEnd/focusEffectEnd_%d.png";
     }
 
     namespace Render {

@@ -52,7 +52,7 @@ bool HUDLayer::init()
         _healthBarContainer->addChild(_soulOrb, 2); // Z=2 (顶层)
     }
 
-    // 注意：此时我们【不】创建血条，而是启动开场动画
+    // 此时不创建血条，而是启动开场动画
     this->playOpeningSequence();
 
     return true;
@@ -101,7 +101,12 @@ void HUDLayer::playOpeningSequence()
 void HUDLayer::spawnNextHealth(int index, int maxHp)
 {
     // 终止条件
-    if (index >= maxHp) return;
+    if (index >= maxHp) {
+        // 全部生成完毕后，强制刷新一次 UI，确保状态正确
+        // 这里需要获取主角当前的真实血量，如果没有传进来，可以先全部设为满
+        this->updateHealth(maxHp, maxHp);
+        return;
+    }
 
     // 1. 创建血条 Sprite (初始用 appear_1)
     std::string startImg = StringUtils::format(Config::Health::PATH_APPEAR.c_str(), 1);
@@ -123,6 +128,9 @@ void HUDLayer::spawnNextHealth(int index, int maxHp)
         auto sprite = Sprite::create(name);
         if (sprite) frames.pushBack(sprite->getSpriteFrame());
     }
+
+    // 保护
+    if (frames.empty()) return;
 
     auto animation = Animation::createWithSpriteFrames(frames, 0.06f);
     animation->setRestoreOriginalFrame(false);
@@ -285,13 +293,24 @@ Action* HUDLayer::createSoulAction(int soulValue)
 // --------------------------------------------------------
 void HUDLayer::updateSoul(int currentSoul)
 {
-    //  停止之前的动画
+    // 1. 防抽搐：如果数值没变，直接忽略
+    if (currentSoul == _lastSoul) return;
+
+    // 2. 边界钳制
+    int safeSoul = currentSoul;
+    if (safeSoul < 0) safeSoul = 0;
+    if (safeSoul > 4) safeSoul = 4;
+
+    // 更新记录
+    _lastSoul = safeSoul;
+
+    //  3. 停止之前的动画
     _soulOrb->stopAllActions();
 
-    //  分情况处理
-    if (currentSoul <= 0)
+    //  4. 分情况处理
+    if (safeSoul == 0)
     {
-        // 【情况 A】空瓶：直接显示静止图
+        // 空瓶：显示静止图
         _soulOrb->setTexture(Config::Soul::PATH_EMPTY);
 
         // 确保它不透明 (防止之前某些动画改了透明度)
@@ -299,7 +318,7 @@ void HUDLayer::updateSoul(int currentSoul)
     }
     else
     {
-        // 【情况 B】有魂：播放动画
+        // 有魂：播放动画
         Action* action = createSoulAction(currentSoul);
         if (action)
         {

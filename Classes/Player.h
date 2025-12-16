@@ -1,163 +1,130 @@
 #ifndef __PLAYER_H__
 #define __PLAYER_H__
-#include <functional> 
-#include "cocos2d.h"
 
-// 【关键】前向声明
-// 告诉编译器 PlayerState 是一个类，但不要在这里 #include "PlayerStates.h"
-// 否则会导致 Player.h 和 PlayerStates.h 互相引用而报错
+#include "cocos2d.h"
+#include "PlayerStats.h"
+#include "PlayerAnimator.h"
+
 class PlayerState;
 
 class Player : public cocos2d::Sprite
 {
 public:
-    static Player* create(const std::string& filename);
-    virtual bool init() override;
+    static Player* create(const std::string& filename = "");
+    virtual bool init();
 
-    // 核心循环
-    virtual void update(float dt, const std::vector<cocos2d::Rect>& platforms);
+    void update(float dt, const std::vector<cocos2d::Rect>& platforms);
 
-    // ==========================================
-    // 1. 状态机接口 (State Machine Interface)
-    // ==========================================
-    // 切换状态（旧状态会被 delete）
+    // --- 状态机接口 ---
     void changeState(PlayerState* newState);
+    PlayerState* getState() const { return _state; }
 
-    // 获取当前状态指针（仅供调试或特殊逻辑使用）
-    PlayerState* getCurrentState() const { return _state; }
+    // --- 动作与物理接口 ---
+    void moveInDirection(int dir);
+    void setVelocityX(float x);
+    void setVelocityY(float y);
+    void startJump();
+    void stopJump();
+    void pogoJump(); // 下劈弹起
+    void attack();   // 播放攻击特效
+    void playAnimation(const std::string& animName);
+    // 凝聚特效
+    void startFocusEffect();
+    void stopFocusEffect();
+    void playFocusEndEffect();
 
-    // ==========================================
-    // 2. 输入接口 (Input Interface) - 供 Scene 调用
-    // ==========================================
-    // 设置水平输入方向: -1(左), 0(停), 1(右)
+    // --- 委托给 Stats 组件 ---
+    void takeDamage(int damage);
+    void die();
+    void executeHeal(); // 回血和特效
+    bool canFocus() const;  // 是否满足凝聚条件
+
+    // --- 输入相关 ---
     void setInputDirectionX(int dir);
     void setInputDirectionY(int dir);
-    void setAttackDir(int dir);
-    void setJumpPressed(bool pressed);
-    void setAttackPressed(bool pressed);
-
-    // ==========================================
-    // 3. 状态查询接口 (Query Interface) - 供 State 类调用
-    // ==========================================
     int getInputX() const { return _inputDirectionX; }
     int getInputY() const { return _inputDirectionY; }
-    bool isJumpPressed() const { return _isJumpPressed; }
+
+    void setAttackPressed(bool pressed);
     bool isAttackPressed() const { return _isAttackPressed; }
-    int getAttackDir() const { return _currentAttackDir; }
 
-    // 物理查询
-    bool isOnGround() const { return _isOnGround; }
-    float getVelocityY() const { return _velocity.y; }
-    float getVelocityX() const { return _velocity.x; }
-    bool isInvincible() const { return _isInvincible; }
-    int getHealth() const { return _health; }
-    int getMaxHealth() const { return _maxHealth; }
-    // ==========================================
-    // 4. 行为执行接口 (Action Interface) - 供 State 类调用
-    // ==========================================
-    // 执行水平移动（根据 Config 的速度）
-    void moveInDirection(int dir);
+    void setJumpPressed(bool pressed);
+    bool isJumpPressed() const { return _isJumpPressed; }
 
-    // 直接设置水平速度（用于急停、冲刺等）
-    void setVelocityX(float x);
+    void setAttackDir(int dir);
 
-    // 跳跃逻辑
-    void startJump(); // 施加向上初速度
-    void stopJump();  // 截断跳跃力（松手即停）
+    // 凝聚输入
+    void setFocusInput(bool pressed);
+    bool isFocusInputPressed() const { return _isFocusInputPressed; }
 
-    // 攻击逻辑
-    void attack();
+    // --- 组件访问 ---
+    // 给状态机或外部使用
+    PlayerStats* getStats() const { return _stats; }
+    // 1. 修复 getHealth / getMaxHealth
+    // 直接从 stats 组件里拿数据
+    int getHealth() const { return _stats ? _stats->getHealth() : 0; }
+    int getMaxHealth() const { return _stats ? _stats->getMaxHealth() : 0; }
 
-    // 下劈命中后的弹跳反馈 (Pogo Jump)
-    void pogoJump();
+    // 4. 修复 gainSoul (Wrapper)
+    // 之前 HelloWorldScene 可能会调用 gainSoul(1)，我们转发给 Stats
+    void gainSoul(int amount);
+	void gainSoulOnKill();
 
-    // 播放动画的通用接口 (name = "run", "idle", "jump"...)
-    void playAnimation(const std::string& animName);
+    // 5. 修复 setOnHealthChanged / setOnSoulChanged
+    // HelloWorldScene 用这个来绑定 UI
+    void setOnHealthChanged(const std::function<void(int, int)>& callback);
+    void setOnSoulChanged(const std::function<void(int)>& callback);
 
-    // 受伤逻辑 (Scene 碰撞检测后调用)
-    void takeDamage(int damage);
-
-    // ==========================================
-    // 5. 碰撞与调试 (Collision & Debug)
-    // ==========================================
+    // --- 辅助 ---
     cocos2d::Rect getCollisionBox() const;
     cocos2d::Rect getAttackHitbox() const;
 
-    // 【新增】定义一个回调函数类型
-    // 参数1: 当前血量, 参数2: 最大血量
-    typedef std::function<void(int, int)> HealthChangeCallback;
+    bool isOnGround() const { return _isOnGround; }
+    float getVelocityY() const { return _velocity.y; }
+    void drawDebugRects();
+    int getAttackDir() const { return _currentAttackDir; }
+    bool isInvincible() const { return _isInvincible; }
 
-    // 【新增】设置回调的方法
-    void setOnHealthChanged(HealthChangeCallback callback) { _onHealthChanged = callback; }
+    // UI 回调接口
+    std::function<void(int, int)> _onHealthChanged;
+    std::function<void(int)> _onSoulChanged;
 
-    // 【新增】灵魂变化回调 (参数：当前灵魂值)
-    typedef std::function<void(int)> SoulChangeCallback;
-    void setOnSoulChanged(SoulChangeCallback callback) { _onSoulChanged = callback; }
-
-    // 【新增】获得灵魂 (amount 通常是 1)
-    void gainSoul(int amount);
-
-    // 【新增】获取当前灵魂
-    int getSoul() const { return _soul; }
 private:
-    // ==========================================
-    // 私有成员变量
-    // ==========================================
+    void updateMovementX(float dt);
+    void updateMovementY(float dt);
+    void updateCollisionX(const std::vector<cocos2d::Rect>& platforms);
+    void updateCollisionY(const std::vector<cocos2d::Rect>& platforms);
 
-    // --- 状态机核心 ---
-    PlayerState* _state = nullptr;
+private:
+    PlayerStats* _stats;// 数据组件
+    PlayerState* _state;// 当前状态
 
-    // --- 输入缓存 ---
-    int _inputDirectionX = 0;   // -1, 0, 1
-    int _inputDirectionY = 0;   // -1, 0, 1
-    bool _isAttackPressed = false;
-    int _health; 
-    int _maxHealth;
-    bool _isJumpPressed = false;
-
-
-    // --- 物理参数 ---
+    // 物理相关
     cocos2d::Vec2 _velocity;
     cocos2d::Size _bodySize;
     cocos2d::Vec2 _bodyOffset;
     cocos2d::Rect _localBodyRect;
 
-    bool _isOnGround = false;
-    bool _isFacingRight = true; 
-	bool _isInvincible = false; //无敌状态（受伤后短暂无敌）
+    bool _isFacingRight;
+    bool _isOnGround;
+    bool _isJumpingAction;
+    float _jumpTimer;
+    bool _isDead;
 
-    // 跳跃相关辅助变量
-    bool _isJumpingAction = false;
-    float _jumpTimer = 0.0f;
-    int _currentAttackDir = 0;
+    // 输入状态
+    int _inputDirectionX;
+    int _inputDirectionY;
+    bool _isAttackPressed;
+    bool _isJumpPressed;
+    int _currentAttackDir; // 0水平, 1上, -1下
+    bool _isInvincible;
+    bool _isFocusInputPressed;
 
-    // --- 动画缓存 ---
-    // 使用 Map 存储所有动画，字符串作为 Key，方便扩展
-    cocos2d::Map<std::string, cocos2d::Animation*> _animations;
+	// 动画组件
+    PlayerAnimator* _animator;
 
-    // 特效精灵 (刀光)
-    cocos2d::Sprite* _slashEffectSprite = nullptr;
-
-    // 调试节点
-    cocos2d::DrawNode* _debugNode = nullptr;
-
-    // ==========================================
-    // 私有辅助函数
-    // ==========================================
-    void initAnimations();
-    void updateMovementX(float dt);
-    void updateCollisionX(const std::vector<cocos2d::Rect>& platforms);
-    void updateMovementY(float dt);
-    void updateCollisionY(const std::vector<cocos2d::Rect>& platforms);
-    void drawDebugRects();
-
-    // 【新增】保存回调函数
-    HealthChangeCallback _onHealthChanged = nullptr;
-
-    // 【新增】灵魂属性
-    int _soul = 0;          // 当前灵魂值
-    int _maxSoul = 4;       // 上限 (1个瓶子 = 4点)
-    SoulChangeCallback _onSoulChanged = nullptr;
+    //调试节点
+    cocos2d::DrawNode* _debugNode;
 };
 
-#endif // __PLAYER_H__
+#endif

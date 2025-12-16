@@ -126,7 +126,7 @@ bool HelloWorld::init()
 
                 // 1. 给主角回魂 (因为是在 Scene 里，直接访问 _player 很方便)
                 if (_player) {
-                    _player->gainSoul(1);
+                    _player->gainSoulOnKill();  
                     CCLOG("Soul gained!");
                 }
 
@@ -146,7 +146,7 @@ bool HelloWorld::init()
             CCLOG("Zombie spawned!");
             zombie->setOnDeathCallback([=]() {
                 if (_player) {
-                    _player->gainSoul(1);
+                    _player->getStats()->gainSoulOnKill();
                     CCLOG("Soul gained!");
                 }
 
@@ -162,7 +162,6 @@ bool HelloWorld::init()
 
     if (_player)
     {
-        _player->setScale(1.25f);
         // 设置出生点 (根据地图调整)
         _player->setPosition(Vec2(400, 1300));
         _gameLayer->addChild(_player, 10);
@@ -192,7 +191,10 @@ bool HelloWorld::init()
 
     // 手动触发一次，让 UI 初始化显示满血
     // 注意：这里 _player 还没读 Config，确保 _health 已经有值了
-    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth()); // 你需要在 Player.h 加 getter
+    hudLayer->updateHealth(
+        _player->getHealth(),
+        _player->getMaxHealth()
+    );
 
     _player->setOnSoulChanged([=](int soul) {
         hudLayer->updateSoul(soul);
@@ -212,43 +214,41 @@ bool HelloWorld::init()
 
         switch (code)
         {
-        case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = true;
             updatePlayerMovement(); // 更新状态
             break;
 
-        case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = true;
             updatePlayerMovement(); // 更新状态            
             break;
 
-        case EventKeyboard::KeyCode::KEY_W:
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = true;
             updatePlayerMovement(); // 更新状态
             break;
 
-        case EventKeyboard::KeyCode::KEY_S:
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = true;
             updatePlayerMovement(); // 更新状态
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE: // 空格跳跃
             _player->setJumpPressed(true);
             break;
 
-        case EventKeyboard::KeyCode::KEY_J:
         case EventKeyboard::KeyCode::KEY_X:
         {
-            // 调用主角攻击动画
             _player->setAttackPressed(true);
         }
         break;
+
+        case EventKeyboard::KeyCode::KEY_A: // 凝聚键
+            _player->setFocusInput(true);
+            break;
         }
+
 
     };
 
@@ -258,35 +258,33 @@ bool HelloWorld::init()
 
         switch (code)
         {
-        case EventKeyboard::KeyCode::KEY_A:
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = false;
             updatePlayerMovement(); // 重新计算移动方向
             break;
-        case EventKeyboard::KeyCode::KEY_D:
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = false;
             updatePlayerMovement(); // 重新计算移动方向
             break;
-        case EventKeyboard::KeyCode::KEY_W:
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = false;
             updatePlayerMovement(); // 重新计算移动方向
             break;
-        case EventKeyboard::KeyCode::KEY_S:
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = false;
             updatePlayerMovement(); // 重新计算移动方向
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE:
             _player->setJumpPressed(false);
             break;
 
-		case EventKeyboard::KeyCode::KEY_J:
         case EventKeyboard::KeyCode::KEY_X:
             _player->setAttackPressed(false);
+            break;
+
+        case EventKeyboard::KeyCode::KEY_A: // 凝聚键
+            if (_player) _player->setFocusInput(false); 
             break;
         }
     };

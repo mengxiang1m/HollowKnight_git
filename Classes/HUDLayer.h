@@ -20,6 +20,7 @@ public:
     CREATE_FUNC(HUDLayer);
 
 private:
+	int _lastSoul = -1; // 记录上一次的灵魂值，避免重复更新
     // 存储所有的血量图标精灵
     std::vector<cocos2d::Sprite*> _heartSprites;
 

@@ -1,6 +1,7 @@
 ﻿#include "Player.h"
 #include "PlayerStates.h" // 引入状态类的实现
-#include "config.h"   // 【核心】引入数值配置
+#include "config.h"   
+#include "HelloWorldScene.h"
 
 USING_NS_CC;
 
@@ -43,37 +44,46 @@ bool Player::init()
     _bodyOffset = Vec2(0, bottomGap);
     _localBodyRect = Rect(-bodyW * 0.5f, bottomGap, bodyW, bodyH);
 
-    // 4. 初始化基础变量
-    _velocity = Vec2::ZERO;
-    _health = Config::Player::MAX_HEALTH; // 使用 Config
-    _maxHealth = Config::Player::MAX_HEALTH;
-    _isFacingRight = false;
-    _isInvincible = false;
-    _isOnGround = false;
-    _soul = 0; 
+    // 4. 初试化变量
+    // ==========================================
+    // 【核心】初始化 Stats 组件
+    // ==========================================
+    _stats = new PlayerStats();
+    // 依赖注入：把 Config 里的数值传给 Stats
+    _stats->initStats(Config::DEFAULT_PLAYER_CFG);
 
-    // 输入标记初始化
+    // 绑定回调：Stats 数据变了 -> 通知 Player -> Player 通知 UI
+    _stats->onHealthChanged = [this](int cur, int max) {
+        if (_onHealthChanged) _onHealthChanged(cur, max);
+        };
+    _stats->onSoulChanged = [this](int cur) {
+        if (_onSoulChanged) _onSoulChanged(cur);
+        };
+
+    // 其他变量初始化
+    _velocity = Vec2::ZERO;
+    _isInvincible = false; // 注意：_isInvincible 属于战斗状态，暂留 Player 或移入 Stats 均可
+    _isFacingRight = false;
+    _isOnGround = false;
+
+    // 输入标记
     _inputDirectionX = 0;
     _inputDirectionY = 0;
     _isAttackPressed = false;
     _jumpTimer = 0.0f;
     _isJumpingAction = false;
     _isJumpPressed = false;
+    _isFocusInputPressed = false;
 
     // 5. 加载所有动画资源
-    initAnimations();
+    _animator = new PlayerAnimator();
+    _animator->init(this); // 把自己传进去，让 Animator 把特效贴在我身上
 
-    // 6. 初始化特效 (刀光)
-    _slashEffectSprite = Sprite::create();
-    _slashEffectSprite->setVisible(false);
-
-    this->addChild(_slashEffectSprite, 10);
-
-    // 7. 调试绘图
+    // 6. 调试绘图
     _debugNode = DrawNode::create();
     this->addChild(_debugNode, 999);
 
-    // 8. 【核心】启动状态机 - 进入待机状态
+    // 7. 启动状态机 - 进入待机状态
     this->changeState(new StateIdle());
 
     return true;
@@ -146,6 +156,11 @@ void Player::setVelocityX(float x)
     _velocity.x = x;
 }
 
+void Player::setVelocityY(float y)
+{
+    _velocity.y = y;
+}
+
 void Player::startJump()
 {
     _isOnGround = false;
@@ -167,81 +182,67 @@ void Player::stopJump()
 
 void Player::attack()
 {
-    // 纯视觉表现，逻辑计时交给 StateSlash
-    if (_slashEffectSprite)
-    {
-        _slashEffectSprite->stopAllActions();
-        _slashEffectSprite->setVisible(true);
-        _slashEffectSprite->setFlippedX(_isFacingRight);
+    _animator->playAttackEffect(_currentAttackDir, _isFacingRight);
+}
 
-        Size size = this->getContentSize();
-        Vec2 centerPos = Vec2(size.width / 2, 90); // 身体中心基准点
-        std::string effectAnimName = "";
+void Player::startFocusEffect()
+{
+    _animator->startFocusEffect();
+}
 
-        // ============================================
-        // 根据攻击方向选择动画和位置
-        // ============================================
-        if (_currentAttackDir == 1) // 上劈
-        {
-            effectAnimName = "slash_up_effect"; // 播放专门的上劈特效
-            _slashEffectSprite->setPosition(centerPos + Vec2(50, 80)); // 向上偏移
-        }
-        else if (_currentAttackDir == -1) // 下劈
-        {
-            effectAnimName = "slash_down_effect"; // 播放专门的下劈特效
-            _slashEffectSprite->setPosition(centerPos + Vec2(50, -70)); // 向下偏移
-        }
-        else
-        {
-            effectAnimName = "slash_effect"; // 播放水平特效
-            float offsetX = _isFacingRight ? 20.0f : 40.0f;
-            _slashEffectSprite->setPosition(centerPos + Vec2(offsetX, 0));
-        }
+void Player::stopFocusEffect()
+{
+    _animator->stopFocusEffect();
+}
 
-        auto effectAnim = _animations.at(effectAnimName);
-        if (effectAnim) {
-            auto seq = Sequence::create(
-                Animate::create(effectAnim),
-                CallFunc::create([this]() { _slashEffectSprite->setVisible(false); }),
-                nullptr
-            );
-            _slashEffectSprite->runAction(seq);
-        }
-        
-    }
+void Player::playFocusEndEffect()
+{
+    _animator->playFocusEndEffect();
 }
 
 void Player::takeDamage(int damage)
 {
-    if (_isInvincible) return;
+    // 1. 状态检查
+    // 如果已经死了，或者正在无敌中，直接无视伤害
+    if (_isInvincible || _stats->isDead()) return;
 
-    _health -= damage;
-    if (_health < 0) _health = 0;
-    CCLOG("Player took damage! Health: %d", _health);
+    // 2. 数据层处理：扣血
+    _stats->takeDamage(damage);
+    CCLOG("Player took damage! Health: %d", _stats->getHealth());
 
-    changeState(new StateDamaged());
-
-    // 击退效果
-    float direction = _isFacingRight ? -1.0f : 1.0f;
-    _velocity.x = direction * 200.0f;
-    _velocity.y = 300.0f;
-
-    // 【新增】通知 UI 更新
-    if (_onHealthChanged) {
-        _onHealthChanged(_health, _maxHealth);
-    }
-
-    // 开启无敌
+    // 3. 开启无敌 (Invincible)
     _isInvincible = true;
-    auto blink = RepeatForever::create(Sequence::create(FadeTo::create(0.1f, 100), FadeTo::create(0.1f, 255), nullptr));
+
+    // 闪烁特效 (Blink)
+    auto blink = RepeatForever::create(Sequence::create(
+        FadeTo::create(0.1f, 100),
+        FadeTo::create(0.1f, 255),
+        nullptr
+    ));
     blink->setTag(999);
     this->runAction(blink);
 
+    // 2.0秒后取消无敌
     this->scheduleOnce([this](float dt) {
         _isInvincible = false;
         this->stopActionByTag(999);
         this->setOpacity(255);
-        }, 2.0f, "invincible_end");
+        }, 1.0f, "invincible_end");
+
+    // 4. 物理击退 (Knockback)
+    // 根据朝向反向弹开
+    float direction = _isFacingRight ? -1.0f : 1.0f;
+    _velocity.x = direction * 400.0f; // 向后的速度 (数值可调)
+    _velocity.y = 600.0f;             // 给一点向上的小跳跃，防卡地
+
+    // 5. 切换到受击状态
+    changeState(new StateDamaged());
+}
+
+void Player::executeHeal()
+{
+    // 调用组件尝试回血
+    bool success = _stats->recoverHealth();
 }
 
 void Player::pogoJump()
@@ -251,75 +252,14 @@ void Player::pogoJump()
     _velocity.y = Config::Player::JUMP_FORCE_BASE*1.2f;
     _isOnGround = false;
 }
+
 // =================================================================
 //  5. 动画系统
 // =================================================================
 
 void Player::playAnimation(const std::string& animName)
 {
-    this->stopActionByTag(101);
-
-    if (_animations.find(animName) == _animations.end())
-    {
-        CCLOG("Warning: Animation '%s' not found!", animName.c_str());
-        return;
-    }
-
-    auto anim = _animations.at(animName);
-
-    Action* action = nullptr;
-    // ============================================================
-    // 根据动画名字决定是否循环
-    // ============================================================
-
-    //  单次播放的动作
-    if (animName == "slash" || animName == "damage"||
-        animName == "lookup"|| animName == "lookdown"||
-        animName == "slash_up" || animName == "slash_down")
-    {
-        action = Animate::create(anim); // 只创建 Animate，不包 RepeatForever
-    }
-    // 循环播放的动作
-    else
-    {
-        action = RepeatForever::create(Animate::create(anim));
-    }    
-    
-    if (action) {
-        action->setTag(101);
-        this->runAction(action);
-    }
-}
-
-void Player::initAnimations()
-{
-    auto loadAnim = [&](const std::string& name, const std::string& format, int count, float delay) {
-        Vector<SpriteFrame*> frames;
-        for (int i = 1; i <= count; i++) {
-            std::string path = StringUtils::format(format.c_str(), i);
-            auto sprite = Sprite::create(path);
-            if (sprite) frames.pushBack(sprite->getSpriteFrame());
-        }
-        if (!frames.empty()) {
-            auto anim = Animation::createWithSpriteFrames(frames, delay);
-            anim->retain();
-            _animations.insert(name, anim);
-        }
-    };
-
-    loadAnim("idle", Config::Path::PLAYER_IDLE, 9, 0.15f);
-    loadAnim("run", Config::Path::PLAYER_RUN, 13, 0.15f);
-    loadAnim("jump", Config::Path::PLAYER_JUMP, 6, 0.15f);
-    loadAnim("fall", Config::Path::PLAYER_FALL, 6, 0.15f);
-    loadAnim("slash", Config::Path::PLAYER_SLASH, 6, 0.04f);
-    loadAnim("slash_effect", Config::Path::PLAYER_SLASH_EFFECT, 6, 0.04f);
-    loadAnim("damage", Config::Path::PLAYER_DAMAGE, 4, 0.1f);
-    loadAnim("lookup", Config::Path::PLAYER_LOOKUP, 6, 0.1f);
-    loadAnim("lookdown", Config::Path::PLAYER_LOOKDOWN, 6, 0.1f);
-    loadAnim("slash_up", Config::Path::PLAYER_UPSLASH, 6, 0.04f);
-    loadAnim("slash_up_effect", Config::Path::PLAYER_UP_SLASH_EFFECT, 6, 0.04f);
-    loadAnim("slash_down_effect", Config::Path::PLAYER_DOWN_SLASH_EFFECT, 6, 0.04f);
-    loadAnim("slash_down", Config::Path::PLAYER_DOWNSLASH, 6, 0.04f);
+    _animator->playAnimation(animName);
 }
 
 // =================================================================
@@ -330,6 +270,8 @@ void Player::setInputDirectionY(int dir) { _inputDirectionY = dir; }
 void Player::setAttackPressed(bool pressed) { _isAttackPressed = pressed; }
 void Player::setJumpPressed(bool pressed) { _isJumpPressed = pressed; }
 void Player::setAttackDir(int dir) { _currentAttackDir = dir; }
+void Player::setFocusInput(bool pressed) { _isFocusInputPressed = pressed; }
+
 // =================================================================
 //  7. 物理引擎 (使用 Config)
 // =================================================================
@@ -432,22 +374,6 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
 // =================================================================
 //  8. 辅助函数
 // =================================================================
-// 【新增】获得灵魂的函数
-void Player::gainSoul(int amount)
-{
-    _soul += amount;
-
-    // 限制最大值 (不能超过满瓶)
-    if (_soul > _maxSoul) {
-        _soul = _maxSoul;
-    }
-
-    // 通知 UI 更新
-    if (_onSoulChanged) {
-        _onSoulChanged(_soul);
-    }
-}
-
 cocos2d::Rect Player::getCollisionBox() const
 {
     Vec2 worldPos = this->getPosition();
@@ -556,4 +482,44 @@ void Player::drawDebugRects()
         _debugNode->drawRect(origin, dest, Color4F(1, 0, 0, 0.6f));
     }
 
+}
+
+// 1. 修复 LNK2019 报错：canFocus 未实现
+bool Player::canFocus() const
+{
+    // 安全检查，防止 stats 还没初始化就调用崩溃
+    if (!_stats) return false;
+    return _stats->canFocus();
+}
+
+// 2. 修复 gainSoul (转发给组件)
+void Player::gainSoul(int amount)
+{
+    if (_stats) {
+        _stats->gainSoul(amount);
+    }
+}
+
+void Player::gainSoulOnKill()
+{
+    if (_stats) {
+        _stats->gainSoulOnKill();
+    }
+}
+
+// 3. 修复 UI 回调绑定
+void Player::setOnHealthChanged(const std::function<void(int, int)>& callback)
+{
+    _onHealthChanged = callback; // 保存到 Player 自身
+    if (_stats) {
+        _stats->onHealthChanged = callback; // 同时设置给 Stats 组件
+    }
+}
+
+void Player::setOnSoulChanged(const std::function<void(int)>& callback)
+{
+    _onSoulChanged = callback;
+    if (_stats) {
+        _stats->onSoulChanged = callback;
+    }
 }
