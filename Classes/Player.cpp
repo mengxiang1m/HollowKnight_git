@@ -44,9 +44,9 @@ bool Player::init()
     _bodyOffset = Vec2(0, bottomGap);
     _localBodyRect = Rect(-bodyW * 0.5f, bottomGap, bodyW, bodyH);
 
-    // 4. 初试化变量
+    // 4. 初始化变量
     // ==========================================
-    // 【核心】初始化 Stats 组件
+    // 【核心】初始化 Stats 组件 (保留组件化设计)
     // ==========================================
     _stats = new PlayerStats();
     // 依赖注入：把 Config 里的数值传给 Stats
@@ -62,7 +62,7 @@ bool Player::init()
 
     // 其他变量初始化
     _velocity = Vec2::ZERO;
-    _isInvincible = false; // 注意：_isInvincible 属于战斗状态，暂留 Player 或移入 Stats 均可
+    _isInvincible = false;
     _isFacingRight = false;
     _isOnGround = false;
 
@@ -75,7 +75,7 @@ bool Player::init()
     _isJumpPressed = false;
     _isFocusInputPressed = false;
 
-    // 5. 加载所有动画资源
+    // 5. 加载所有动画资源 (保留 Animator 组件)
     _animator = new PlayerAnimator();
     _animator->init(this); // 把自己传进去，让 Animator 把特效贴在我身上
 
@@ -107,7 +107,6 @@ void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
 
     updateMovementY(dt);
     updateCollisionY(platforms);
-
 }
 
 // =================================================================
@@ -182,6 +181,7 @@ void Player::stopJump()
 
 void Player::attack()
 {
+    // 委托给 Animator 播放攻击特效
     _animator->playAttackEffect(_currentAttackDir, _isFacingRight);
 }
 
@@ -200,20 +200,32 @@ void Player::playFocusEndEffect()
     _animator->playFocusEndEffect();
 }
 
-void Player::takeDamage(int damage)
+void Player::takeDamage(int damage, const cocos2d::Vec2& attackerPos, const std::vector<cocos2d::Rect>& platforms)
 {
     // 1. 状态检查
-    // 如果已经死了，或者正在无敌中，直接无视伤害
     if (_isInvincible || _stats->isDead()) return;
 
-    // 2. 数据层处理：扣血
+    // 2. 扣血
     _stats->takeDamage(damage);
     CCLOG("Player took damage! Health: %d", _stats->getHealth());
 
-    // 3. 开启无敌 (Invincible)
-    _isInvincible = true;
+    // 2. 【核心修复】计算正确的击退方向 (远离攻击者)
+    // 即使你背对敌人，这个算法也会把你推向远离敌人的方向
+    float knockbackSpeed = 400.0f;
+    float direction = (this->getPositionX() < attackerPos.x) ? -1.0f : 1.0f;
 
-    // 闪烁特效 (Blink)
+    // 3. UI 更新
+    if (_onHealthChanged) {
+        _onHealthChanged(this->getHealth(), this->getMaxHealth());
+    }
+
+    _velocity.x = direction * knockbackSpeed;
+    _velocity.y = 300.0f; // 给一个小跳，防止在地面摩擦力过大
+
+    // 5. 切换状态和无敌
+    changeState(new StateDamaged());
+
+    _isInvincible = true;
     auto blink = RepeatForever::create(Sequence::create(
         FadeTo::create(0.1f, 100),
         FadeTo::create(0.1f, 255),
@@ -222,21 +234,11 @@ void Player::takeDamage(int damage)
     blink->setTag(999);
     this->runAction(blink);
 
-    // 2.0秒后取消无敌
     this->scheduleOnce([this](float dt) {
         _isInvincible = false;
         this->stopActionByTag(999);
         this->setOpacity(255);
         }, 1.0f, "invincible_end");
-
-    // 4. 物理击退 (Knockback)
-    // 根据朝向反向弹开
-    float direction = _isFacingRight ? -1.0f : 1.0f;
-    _velocity.x = direction * 400.0f; // 向后的速度 (数值可调)
-    _velocity.y = 600.0f;             // 给一点向上的小跳跃，防卡地
-
-    // 5. 切换到受击状态
-    changeState(new StateDamaged());
 }
 
 void Player::executeHeal()
@@ -249,7 +251,7 @@ void Player::pogoJump()
 {
     _velocity.y = 0;
     // 给一个向上的瞬时速度 (类似跳跃)
-    _velocity.y = Config::Player::JUMP_FORCE_BASE*1.2f;
+    _velocity.y = Config::Player::JUMP_FORCE_BASE * 1.2f;
     _isOnGround = false;
 }
 
@@ -322,9 +324,15 @@ void Player::updateCollisionX(const std::vector<cocos2d::Rect>& platforms)
             if (overlapY > playerRect.size.height * 0.5f)
             {
                 if (_velocity.x > 0)
+                {
                     this->setPositionX(wall.getMinX() - _bodySize.width * 0.5f - _bodyOffset.x - 0.1f);
+                    _velocity.x = 0;
+                }
                 else if (_velocity.x < 0)
+                {
                     this->setPositionX(wall.getMaxX() + _bodySize.width * 0.5f - _bodyOffset.x + 0.1f);
+                    _velocity.x = 0;
+                }
             }
         }
     }
@@ -408,22 +416,18 @@ cocos2d::Rect Player::getAttackHitbox() const
         // X轴：居中
         float startX = pos.x - w / 2 + _bodyOffset.x;
 
-        // Y轴：【关键调整】
-        // 让判定框从“脚踝以上”就开始，一直延伸到“脚底以下很深”
-        // pos.y + _bodyOffset.y 是脚底板位置
-        // 我们让它从脚底板 向上 40像素开始，向下延伸 120像素
-        // 这样即使敌人和主角重叠（在身体里），也能砍到
+        // Y轴：让判定框从“脚踝以上”就开始，向下延伸
         float startY = pos.y + _bodyOffset.y - h + 40.0f;
 
         return Rect(startX, startY, w, h);
     }
 
-    // ================== 水平判定 (原逻辑) ==================
-    // 1. 参数配置 (根据手感调整)
+    // ================== 水平判定 ==================
     else {
-        float attackRange = 120.0f; // 刀长
-        float attackHeight = 70.0f; // 刀高
-        float innerOffset = 20.0f;  // 向身后延伸一点点，防止贴身打不到
+        // 【合并点】采用文件2调优后的参数 (140.0f)
+        float attackRange = 140.0f;
+        float attackHeight = 70.0f;
+        float innerOffset = 20.0f;
 
         float startY = pos.y + _bodyOffset.y + 10.0f;
         float startX = _isFacingRight ? (pos.x - innerOffset) : (pos.x + innerOffset - attackRange);
@@ -438,9 +442,8 @@ void Player::drawDebugRects()
     _debugNode->clear();
 
     Size size = this->getContentSize();
-    // 因为 DrawNode 原点是左下角，而锚点在 (0.5, 0)
-    // 所以锚点相对于 DrawNode 的位置是 (宽的一半, 0)
     Vec2 centerOffset = Vec2(size.width * 0.5f, 0.0f);
+
     // A. 画物理框 (实心绿)
     Vec2 greenMin = _localBodyRect.origin + centerOffset;
     Vec2 greenMax = greenMin + _localBodyRect.size;
@@ -453,35 +456,29 @@ void Player::drawDebugRects()
     _debugNode->drawDot(centerOffset, 5.0f, Color4F::MAGENTA);
 
     // D. 画攻击判定框 (红色)
-    if (_debugNode) // 建议加个判断防止崩溃
+    // 简单绘制一个示意框，实际逻辑在 getAttackHitbox 里
+    // 这里为了调试准确，其实可以直接画 getAttackHitbox() 的返回结果
+    // 但因为 DrawNode 是局部坐标，getAttackHitbox 是世界坐标，需要转换
+    // 这里保留原有的简单绘制
+    if (_debugNode)
     {
-        // --- 1. 参数 ---
-        float attackRange = 120.0f;
+        float attackRange = 140.0f; // 保持一致
         float attackHeight = 70.0f;
         float innerOffset = 20.0f;
-
-        // --- 2. Y 轴计算 ---
         float startY = 0 + _bodyOffset.y + 10.0f;
-
-        // --- 3. X 轴计算 ---
         float startX;
+
         if (_isFacingRight) {
-            // 这里用到了 size
             startX = (size.width / 2) - innerOffset;
         }
         else {
-            // 这里也用到了 size
             startX = (size.width / 2) + innerOffset - attackRange;
         }
 
-        // --- 4. 绘制 ---
         Vec2 origin(startX, startY);
         Vec2 dest(startX + attackRange, startY + attackHeight);
-
-        // 注意：DrawNode 是画在 Player 节点内部的，所以坐标是相对坐标，不要加 getPosition()
         _debugNode->drawRect(origin, dest, Color4F(1, 0, 0, 0.6f));
     }
-
 }
 
 // 1. 修复 LNK2019 报错：canFocus 未实现

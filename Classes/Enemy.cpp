@@ -1,4 +1,4 @@
-ï»¿#include "Enemy.h"
+#include "Enemy.h"
 USING_NS_CC;
 
 Enemy* Enemy::create(const std::string& filename)
@@ -22,7 +22,7 @@ bool Enemy::init()
         return false;
     }
 
-    // åˆå§‹åŒ–å±žæ€§
+    // ³õÊ¼»¯ÊôÐÔ
     _currentState = State::PATROL;
     _health = 3;
     _maxHealth = 3;
@@ -32,13 +32,13 @@ bool Enemy::init()
     _patrolLeftBound = 0.0f;
     _patrolRightBound = 300.0f;
 
-    // åŠ è½½åŠ¨ç”»
+    // ¼ÓÔØ¶¯»­
     loadAnimations();
 
-    // æ’­æ”¾èµ°è·¯åŠ¨ç”»
+    // ²¥·Å×ßÂ·¶¯»­
     playWalkAnimation();
 
-    // å¯ç”¨æ¯å¸§æ›´æ–°
+    // ÆôÓÃÃ¿Ö¡¸üÐÂ
     this->scheduleUpdate();
 
     CCLOG(" [Enemy::init] Enemy initialized successfully!");
@@ -121,7 +121,7 @@ void Enemy::update(float dt)
         return;
     }
 
-    // å·¡é€»é€»è¾‘
+    // Ñ²ÂßÂß¼­
     Vec2 currentPos = this->getPosition();
 
     if (_movingRight)
@@ -151,43 +151,43 @@ void Enemy::update(float dt)
 }
 
 // ======================================================================
-// å—å‡»å¤„ç† - åŒ…å«å‡»é€€æ•ˆæžœ
+// ÊÜ»÷´¦Àí - °üº¬»÷ÍËÐ§¹û
 // ======================================================================
-void Enemy::takeDamage(int damage)
+void Enemy::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
 {
-    // ã€ä¿®å¤ã€‘å¦‚æžœå·²ç»æ­»äº¡ æˆ– å¤„äºŽæ— æ•ŒçŠ¶æ€ï¼Œç›´æŽ¥è¿”å›ž
+    // ¡¾ÐÞ¸´¡¿Èç¹ûÒÑ¾­ËÀÍö »ò ´¦ÓÚÎÞµÐ×´Ì¬£¬Ö±½Ó·µ»Ø
     if (_currentState == State::DEAD || _isInvincible) return;
 
     _health -= damage;
     CCLOG(" Enemy took % d damage!Health: % d / % d", damage, _health, _maxHealth);
-    // å¼€å¯æ— æ•Œ
+    // ¿ªÆôÎÞµÐ
     _isInvincible = true;
     // ========================================
-    // 1. å—å‡»é—ªçƒæ•ˆæžœï¼ˆå˜çº¢ + é—ªçƒï¼‰
+    // 1. ÊÜ»÷ÉÁË¸Ð§¹û£¨±äºì + ÉÁË¸£©
     // ========================================
-    auto tintRed = TintTo::create(0.1f, 255, 0, 0);      // å˜çº¢
-    auto tintNormal = TintTo::create(0.1f, 255, 255, 255); // æ¢å¤æ­£å¸¸
+    auto tintRed = TintTo::create(0.1f, 255, 0, 0);      // ±äºì
+    auto tintNormal = TintTo::create(0.1f, 255, 255, 255); // »Ö¸´Õý³£
     auto blink = Sequence::create(tintRed, tintNormal, nullptr);
-    auto repeat = Repeat::create(blink, 2); // é—ªçƒ2æ¬¡
+    auto repeat = Repeat::create(blink, 2); // ÉÁË¸2´Î
     this->runAction(repeat);
 
     // ========================================
-    // 2. å‡»é€€æ•ˆæžœï¼ˆå‘åŽæŽ¨ï¼‰
+    // 2. »÷ÍËÐ§¹û£¨ÏòºóÍÆ£©
     // ========================================
-    float knockbackDistance = 30.0f; // å‡»é€€è·ç¦»
-    float knockbackDuration = 0.2f;  // å‡»é€€æŒç»­æ—¶é—´
+    float knockbackDistance = 30.0f; // »÷ÍË¾àÀë
+    float knockbackDuration = 0.2f;  // »÷ÍË³ÖÐøÊ±¼ä
 
-    // æ ¹æ®æ•Œäººå½“å‰æœå‘å†³å®šå‡»é€€æ–¹å‘
-    float direction = _movingRight ? -1.0f : 1.0f; // å‘å·¦å‡»é€€æˆ–å‘å³å‡»é€€
+    // ¸ù¾ÝµÐÈËµ±Ç°³¯Ïò¾ö¶¨»÷ÍË·½Ïò
+    float direction = _movingRight ? -1.0f : 1.0f; // Ïò×ó»÷ÍË»òÏòÓÒ»÷ÍË
     
     Vec2 currentPos = this->getPosition();
     Vec2 knockbackTarget = Vec2(currentPos.x + direction * knockbackDistance, currentPos.y);
     
     auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
-    auto easeOut = EaseOut::create(knockback, 2.0f); // ç¼“åŠ¨æ•ˆæžœ
+    auto easeOut = EaseOut::create(knockback, 2.0f); // »º¶¯Ð§¹û
     this->runAction(easeOut);
 
-	// ã€ä¿®å¤ã€‘è®¾ç½®æ— æ•ŒæŒç»­æ—¶é—´
+	// ¡¾ÐÞ¸´¡¿ÉèÖÃÎÞµÐ³ÖÐøÊ±¼ä
     this->scheduleOnce([this](float dt) {
         _isInvincible = false;
         }, 0.2f, "invincible_cooldown");
@@ -198,11 +198,11 @@ void Enemy::takeDamage(int damage)
         changeState(State::DEAD);
 
         // ====================================================
-        // ã€æ ¸å¿ƒä¿®æ”¹ã€‘ä¸ç®¡æ˜¯è°ï¼Œæ‰§è¡Œå®ƒäº¤ä»£çš„åŽäº‹
+        // ¡¾ºËÐÄÐÞ¸Ä¡¿²»¹ÜÊÇË­£¬Ö´ÐÐËü½»´úµÄºóÊÂ
         // ====================================================
         if (_onDeathCallback)
         {
-            _onDeathCallback(); // æ‰§è¡Œå›žè°ƒï¼
+            _onDeathCallback(); // Ö´ÐÐ»Øµ÷£¡
         }
     }
 }
@@ -235,7 +235,7 @@ void Enemy::setPatrolRange(float leftBound, float rightBound)
     CCLOG("[Enemy] Patrol range set: %.0f to %.0f", leftBound, rightBound);
 }
 
-// ã€æ–°å¢žã€‘èŽ·å–æ•Œäººçš„ç¢°æ’žç®±
+// ¡¾ÐÂÔö¡¿»ñÈ¡µÐÈËµÄÅö×²Ïä
 cocos2d::Rect Enemy::getHitbox() const
 {
     if (_currentState == State::DEAD)
@@ -243,12 +243,12 @@ cocos2d::Rect Enemy::getHitbox() const
         return Rect::ZERO;
     }
 
-    // èŽ·å–æ•Œäººç²¾çµåœ¨ä¸–ç•Œåæ ‡ç³»ä¸­çš„åŒ…å›´ç›’
+    // »ñÈ¡µÐÈË¾«ÁéÔÚÊÀ½ç×ø±êÏµÖÐµÄ°üÎ§ºÐ
     return this->getBoundingBox();
 }
 
 // ========================================
-// ç¢°åˆ°ä¸»è§’æ—¶çš„å‡»é€€ååº”
+// Åöµ½Ö÷½ÇÊ±µÄ»÷ÍË·´Ó¦
 // ========================================
 void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
 {
@@ -257,21 +257,21 @@ void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
         return;
     }
 
-    // è®¡ç®—æ•Œäººç›¸å¯¹çŽ©å®¶çš„æ–¹å‘
+    // ¼ÆËãµÐÈËÏà¶ÔÍæ¼ÒµÄ·½Ïò
     Vec2 enemyPos = this->getPosition();
     float directionX = enemyPos.x - playerPos.x;
 
-    // æ ¹æ®ç›¸å¯¹ä½ç½®å†³å®šå‡»é€€æ–¹å‘
+    // ¸ù¾ÝÏà¶ÔÎ»ÖÃ¾ö¶¨»÷ÍË·½Ïò
     float knockbackDirection = (directionX > 0) ? 1.0f : -1.0f;
 
-    // å‡»é€€å‚æ•°
-    float knockbackDistance = 40.0f;  // å°å¹…åº¦å‡»é€€
-    float knockbackDuration = 0.15f;  // å¿«é€Ÿå‡»é€€
+    // »÷ÍË²ÎÊý
+    float knockbackDistance = 40.0f;  // Ð¡·ù¶È»÷ÍË
+    float knockbackDuration = 0.15f;  // ¿ìËÙ»÷ÍË
 
-    // è®¡ç®—ç›®æ ‡ä½ç½®
+    // ¼ÆËãÄ¿±êÎ»ÖÃ
     Vec2 knockbackTarget = Vec2(enemyPos.x + knockbackDirection * knockbackDistance, enemyPos.y);
 
-    // æ‰§è¡Œå‡»é€€åŠ¨ä½œ
+    // Ö´ÐÐ»÷ÍË¶¯×÷
     auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
     auto easeOut = EaseOut::create(knockback, 2.0f);
     this->runAction(easeOut);

@@ -1,6 +1,6 @@
 #include "PlayerStates.h"
 #include "Player.h"  // 必须引入，否则无法调用 player 的方法
-#include "config.h" // 假设你把数值都放在了这里
+#include "config.h" 
 #include "HelloWorldScene.h"
 
 USING_NS_CC;

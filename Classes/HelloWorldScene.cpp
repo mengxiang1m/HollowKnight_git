@@ -2,7 +2,11 @@
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
 #include "Zombie.h"
+#include "Spike.h"
+#include "Buzzer.h"
 #include "HUDLayer.h"
+#include "Jar.h"
+#include "Fireball.h" 
 
 USING_NS_CC;
 
@@ -10,7 +14,6 @@ Scene* HelloWorld::createScene()
 {
     return HelloWorld::create();
 }
-
 
 void HelloWorld::parseMapCollisions(TMXTiledMap* map)
 {
@@ -42,7 +45,7 @@ void HelloWorld::parseMapCollisions(TMXTiledMap* map)
         Rect rect = Rect(x, y, w, h);
         _groundRects.push_back(rect);
 
-        CCLOG("Parsed Ground Rect: x=%f, y=%f, w=%f, h=%f", x, y, w, h);
+        // CCLOG("Parsed Ground Rect: x=%f, y=%f, w=%f, h=%f", x, y, w, h);
     }
 }
 
@@ -57,7 +60,7 @@ bool HelloWorld::init()
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
     // ============================================================
-    // 1. 【核心修改】创建游戏容器层
+    // 1. 创建游戏容器层
     // ============================================================
     _gameLayer = Layer::create();
 
@@ -70,100 +73,129 @@ bool HelloWorld::init()
     this->addChild(_gameLayer, 1);
 
     //////////////////////////////////////////////////////////////////////
-    // 1. 背景
+    // 2. 背景
     //////////////////////////////////////////////////////////////////////
     auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // 稍微调暗一点，更有氛围
     _gameLayer->addChild(bgLayer, -100);
 
     //////////////////////////////////////////////////////////////////////
-    // 2. 加载地图
+    // 3. 使用loadMap方法加载level1
     //////////////////////////////////////////////////////////////////////
-    // 确保你的 Resources/maps/level1.tmx 文件存在
-    auto map = TMXTiledMap::create("maps/level1.tmx");
-
-    if (map == nullptr)
-    {
-        CCLOG("Error: Failed to load maps/level1.tmx");
-    }
-    else
-    {
-        map->setAnchorPoint(Vec2(0, 0));
-        map->setPosition(Vec2(0, 0));
-        map->setTag(123);
-        _gameLayer->addChild(map, -99);
-
-        //解析碰撞数据
-        this->parseMapCollisions(map);
-
-        // =================【调试代码开始】=================
-       // 创建一个 DrawNode 用来画红框
-        auto drawNode = DrawNode::create();
-        _gameLayer->addChild(drawNode, 999); // Z序设高一点，保证画在最上面
-
-        for (const auto& rect : _groundRects)
-        {
-            // 画红色空心矩形
-            // rect.origin 是左下角，rect.origin + rect.size 是右上角
-            drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
-        }
-        // =================【调试代码结束】=================
-        //////////////////////////////////////////////////////////////////////
-        // 
-        // 3. 创建敌人
-        //////////////////////////////////////////////////////////////////////
-        auto enemy = Enemy::create("enemies/enemy_walk_1.png");
-
-        if (enemy)
-        {
-            // 放在地图的一个平台上
-            enemy->setPosition(Vec2(600, 430));
-            enemy->setPatrolRange(500, 800);
-            enemy->setTag(999);
-            // 【改】加到 _gameLayer
-            _gameLayer->addChild(enemy, 5);
-            CCLOG("Enemy spawned!");
-            enemy->setOnDeathCallback([=]() {
-
-                // 1. 给主角回魂 (因为是在 Scene 里，直接访问 _player 很方便)
-                if (_player) {
-                    _player->gainSoulOnKill();  
-                    CCLOG("Soul gained!");
-                }
-
-                //  播放特定的音效
-                // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
-                });
-        }
-
-        // 创建 Zombie 敌人
-        auto zombie = Zombie::create("zombie/walk/walk_1.png");
-        if (zombie)
-        {
-            zombie->setPosition(Vec2(1900, 430));
-            zombie->setPatrolRange(800, 1200);
-            zombie->setTag(998);
-            _gameLayer->addChild(zombie, 5);
-            CCLOG("Zombie spawned!");
-            zombie->setOnDeathCallback([=]() {
-                if (_player) {
-                    _player->getStats()->gainSoulOnKill();
-                    CCLOG("Soul gained!");
-                }
-
-                // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
-                });
-        }
-    }
+    loadMap("maps/level1.tmx");
 
     //////////////////////////////////////////////////////////////////////
-    // 4. 创建主角 (Player)
+    // 4. 在 init 中创建 Level 1 特有的敌人
+    //////////////////////////////////////////////////////////////////////
+
+    // --- 创建 Enemy ---
+    auto enemy = Enemy::create("enemies/enemy_walk_1.png");
+    if (enemy)
+    {
+        enemy->setPosition(Vec2(600, 430));
+        enemy->setPatrolRange(500, 800);
+        enemy->setTag(999);
+        _gameLayer->addChild(enemy, 5);
+
+        // 死亡回调 (回魂 + 音效)
+        enemy->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill();
+                CCLOG("Soul gained from Enemy!");
+            }
+            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+            });
+
+        CCLOG("Enemy spawned!");
+    }
+
+    // --- 创建 Zombie 敌人 ---
+    auto zombie = Zombie::create("zombie/walk/walk_1.png");
+    if (zombie)
+    {
+        zombie->setPosition(Vec2(1200, 430));
+        zombie->setPatrolRange(1000, 1400);
+        zombie->setTag(998);
+        _gameLayer->addChild(zombie, 5);
+
+        // 死亡回调
+        zombie->setOnDeathCallback([=]() {
+            if (_player) {
+                // 兼容不同写法，这里假设 Player 有 gainSoulOnKill
+                _player->gainSoulOnKill();
+                CCLOG("Soul gained from Zombie!");
+            }
+            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+            });
+
+        CCLOG("Zombie spawned at position (1200, 430)!");
+    }
+
+    // --- 创建 Spike 陷阱 ---
+    auto textureCache = Director::getInstance()->getTextureCache();
+    auto spikeTexture = textureCache->addImage("traps/spike.png");
+    Spike* spike = nullptr;
+
+    if (spikeTexture) {
+        spike = Spike::create("traps/spike.png");
+    }
+    else {
+        spike = Spike::create("enemies/enemy_walk_1.png"); // Fallback
+    }
+
+    if (spike)
+    {
+        Vec2 spikePos = Vec2(3590.0f, 1000.0f);
+        spike->setInitialPosition(spikePos);
+        spike->setTag(997);
+        spike->setAnchorPoint(Vec2(0.5f, 0.5f));
+        spike->setVisible(true);
+        spike->setOpacity(255);
+        spike->setScale(1.0f);
+        spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
+        _gameLayer->addChild(spike, 5);
+    }
+
+    // --- 创建 Buzzer 飞行敌人 ---
+    auto buzzer1 = Buzzer::create("buzzer/idle/idle_1.png");
+    if (buzzer1)
+    {
+        Vec2 buzzer1Pos = Vec2(4000.0f, 900.0f);
+        buzzer1->setInitialPosition(buzzer1Pos);
+        buzzer1->setTag(996);
+        _gameLayer->addChild(buzzer1, 5);
+
+        buzzer1->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill(); // 调用主角加魂
+                CCLOG("Soul gained from Buzzer 1!");
+            }
+            });
+    }
+
+    auto buzzer2 = Buzzer::create("buzzer/idle/idle_1.png");
+    if (buzzer2)
+    {
+        Vec2 buzzer2Pos = Vec2(6000.0f, 700.0f);
+        buzzer2->setInitialPosition(buzzer2Pos);
+        buzzer2->setTag(995);
+        _gameLayer->addChild(buzzer2, 5);
+
+        buzzer2->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill(); // 调用主角加魂
+                CCLOG("Soul gained from Buzzer 2!");
+            }
+            });
+    }
+
+    //////////////////////////////////////////////////////////////////////
+    // 5. 创建主角 (Player)
     //////////////////////////////////////////////////////////////////////
     _player = Player::create("Knight/idle/idle_1.png");
 
     if (_player)
     {
-        // 设置出生点 (根据地图调整)
-        _player->setPosition(Vec2(400, 1300));
+        _player->setPosition(Vec2(450, 1300));  
         _gameLayer->addChild(_player, 10);
         CCLOG("Player created successfully!");
     }
@@ -172,66 +204,57 @@ bool HelloWorld::init()
         CCLOG("Error: Failed to create Player!");
     }
 
-    // ========================================
-    // 【新增】创建 UI 层
-    // ========================================
+    //////////////////////////////////////////////////////////////////////
+    // 6. 创建 UI 层
+    //////////////////////////////////////////////////////////////////////
     auto hudLayer = HUDLayer::createLayer();
     hudLayer->setTag(900);
-
-    // Z序设为 100，保证永远盖在地图和主角上面
     this->addChild(hudLayer, 100);
 
-    // ========================================
-    // 【关键】连接 Player 和 HUD
-    // ========================================
-    // 这是一个 Lambda 表达式，当 Player 血量变了，就会执行大括号里的代码
-    _player->setOnHealthChanged([=](int hp, int maxHp) {
-        hudLayer->updateHealth(hp, maxHp);
-        });
+    if (_player) {
+        // 血量监听
+        _player->setOnHealthChanged([=](int hp, int maxHp) {
+            hudLayer->updateHealth(hp, maxHp);
+            });
 
-    // 手动触发一次，让 UI 初始化显示满血
-    // 注意：这里 _player 还没读 Config，确保 _health 已经有值了
-    hudLayer->updateHealth(
-        _player->getHealth(),
-        _player->getMaxHealth()
-    );
+        // 魂量监听 
+        _player->setOnSoulChanged([=](int soul) {
+            hudLayer->updateSoul(soul);
+            });
 
-    _player->setOnSoulChanged([=](int soul) {
-        hudLayer->updateSoul(soul);
-        });
+        // 初始化 UI
+        hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth());
+    }
 
     //////////////////////////////////////////////////////////////////////
-    // 5. 键盘监听器
+    // 7. 键盘监听器
     //////////////////////////////////////////////////////////////////////
-
     auto listener = EventListenerKeyboard::create();
 
     // --- 按下按键 ---
     listener->onKeyPressed = [=](EventKeyboard::KeyCode code, Event* event) {
-
-        // 如果主角不存在，直接返回，防止崩溃
         if (_player == nullptr) return;
 
         switch (code)
         {
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = true;
-            updatePlayerMovement(); // 更新状态            
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = true;
-            updatePlayerMovement(); // 更新状态
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
@@ -239,18 +262,14 @@ bool HelloWorld::init()
             break;
 
         case EventKeyboard::KeyCode::KEY_X:
-        {
             _player->setAttackPressed(true);
-        }
-        break;
+            break;
 
-        case EventKeyboard::KeyCode::KEY_A: // 凝聚键
+        case EventKeyboard::KeyCode::KEY_A:
             _player->setFocusInput(true);
             break;
         }
-
-
-    };
+        };
 
     // --- 松开按键 ---
     listener->onKeyReleased = [=](EventKeyboard::KeyCode code, Event* event) {
@@ -258,21 +277,28 @@ bool HelloWorld::init()
 
         switch (code)
         {
+        case EventKeyboard::KeyCode::KEY_A:
+            // 凝聚释放 
+            _player->setFocusInput(false);
+
+            break;
+
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             _isLeftPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
+
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
         case EventKeyboard::KeyCode::KEY_UP_ARROW:
             _isUpPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             _isDownPressed = false;
-            updatePlayerMovement(); // 重新计算移动方向
+            updatePlayerMovement();
             break;
 
         case EventKeyboard::KeyCode::KEY_Z:
@@ -282,17 +308,13 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_X:
             _player->setAttackPressed(false);
             break;
-
-        case EventKeyboard::KeyCode::KEY_A: // 凝聚键
-            if (_player) _player->setFocusInput(false); 
-            break;
         }
-    };
+        };
 
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
     //////////////////////////////////////////////////////////////////////
-    // 6. 退出按钮
+    // 8. 退出按钮
     //////////////////////////////////////////////////////////////////////
     auto closeItem = MenuItemImage::create(
         "CloseNormal.png",
@@ -308,9 +330,26 @@ bool HelloWorld::init()
 
     auto menu = Menu::create(closeItem, NULL);
     menu->setPosition(Vec2::ZERO);
-    this->addChild(menu, 100); // UI 放在最顶层
+    this->addChild(menu, 100);
 
-    // 开启 Update，用于相机跟随
+    //////////////////////////////////////////////////////////////////////
+    // 9. 调试 UI
+    //////////////////////////////////////////////////////////////////////
+    _coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
+    _coordLabel->setColor(Color3B::YELLOW);
+    _coordLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 50));
+    _coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    this->addChild(_coordLabel, 200);
+
+    _spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
+    _spikeDebugLabel->setColor(Color3B::RED);
+    _spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
+    _spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    this->addChild(_spikeDebugLabel, 200);
+
+    _debugDrawNode = DrawNode::create();
+    this->addChild(_debugDrawNode, 150);
+
     this->scheduleUpdate();
 
     return true;
@@ -320,172 +359,348 @@ void HelloWorld::updatePlayerMovement()
 {
     if (!_player) return;
 
-    // 1. 计算输入方向
     // 左键(-1) + 右键(+1)
-    // 如果同时按住，结果为 0 (停)；只按左是 -1；只按右是 1
-    int dirX = 0,dirY=0;
+    int dirX = 0, dirY = 0;
     if (_isLeftPressed)  dirX -= 1;
     if (_isRightPressed) dirX += 1;
 
-    if (_isUpPressed) dirY+= 1;
+    if (_isUpPressed) dirY += 1;
     if (_isDownPressed) dirY -= 1;
- 
-    // 2. 将“意图”传给 Player
-    // Player 内部的状态机 (StateRun/StateIdle) 会自动读取这个值
-    // 如果是 0，状态机自动切回 Idle；如果是 -1/1，状态机自动切为 Run 并移动
+
     _player->setInputDirectionX(dirX);
     _player->setInputDirectionY(dirY);
 }
 
-// 每帧更新：实现相机跟随
+// 每帧更新：实现相机跟随、碰撞检测、关卡切换
 void HelloWorld::update(float dt)
 {
+    if (!_player || !_gameLayer) return;
+
     auto map = _gameLayer->getChildByTag(123);
-    if (_player && map)
-    {
-        if (!_player || !_gameLayer) return;
+    if (!map) return;
 
-        auto map = _gameLayer->getChildByTag(123);
-        if (!map) return;
-
-        // ========================================
-       // 1. 首先更新玩家位置
-       // ========================================
-        _player->update(dt, _groundRects);
-
-        // ========================================
-    // 2. 相机立即跟随玩家
     // ========================================
+    // 0. 检测玩家位置，触发场景切换 (Level 1 -> 2)
+    // ========================================
+    if (_currentLevel == 1 && !_isTransitioning)
+    {
         Vec2 playerPos = _player->getPosition();
-
-        Size visibleSize = Director::getInstance()->getVisibleSize();
-        Size mapSize = map->getContentSize();
-        // 获取缩放比例 (现在是 _gameLayer 在缩放)
-        float scaleValue = _gameLayer->getScale();
-
-        // 相机偏移需要乘以缩放因子
-      // 因为 Scene 被缩放了，setPosition 的单位也被缩放了
-        float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
-        float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
-
-        // 【边界限制】确保相机不超出地图边界（同样需要考虑缩放）
-        float scaledMapWidth = mapSize.width * scaleValue;
-        float scaledMapHeight = mapSize.height * scaleValue;
-
-        float minX = -(scaledMapWidth - visibleSize.width);
-        float maxX = 0.0f;
-        float minY = -(scaledMapHeight - visibleSize.height);
-        float maxY = 0.0f;
-
-        if (scaledMapWidth > visibleSize.width) {
-            targetX = std::max(minX, std::min(targetX, maxX));
-        }
-        else {
-            targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
-        }
-
-        if (scaledMapHeight > visibleSize.height) {
-            targetY = std::max(minY, std::min(targetY, maxY));
-        }
-        else {
-            targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
-        }
-
-        // ============================================================
-        // 【修改】只移动游戏层
-        // ============================================================
-        _gameLayer->setPosition(targetX, targetY);
-
-        // ========================================
-		// 3. 【修复】修改 Enemy 碰撞检测逻辑
-        // ========================================
-        auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
-        if (enemy)
+        if (playerPos.x >= 6500.0f)
         {
-            // 获取碰撞箱，如果为空则跳过碰撞检测
-            Rect enemyBox = enemy->getHitbox();
+            CCLOG("Player reached level1 end! Triggering level switch...");
+            switchToLevel2();
+            return;
+        }
+    }
 
-            // 只有当敌人碰撞箱有效时才进行碰撞检测
-            if (!enemyBox.equals(Rect::ZERO))
+    // ========================================
+    // 1. 更新玩家位置 (包含 Jar 平台逻辑)
+    // ========================================
+    std::vector<Rect> dynamicGroundRects = _groundRects;  // 复制原始地面碰撞
+
+    // 将所有未被摧毁的罐子顶部平台添加到碰撞检测中
+    for (auto jar : _jars)
+    {
+        if (jar && !jar->isDestroyed())
+        {
+            Rect topPlatform = jar->getTopPlatformBox();
+            if (!topPlatform.equals(Rect::ZERO))
             {
-                bool isEnemyHit = false;
-				// 1. 首先检测攻击是否命中敌人
-                if (_player->isAttackPressed())
+                dynamicGroundRects.push_back(topPlatform);
+            }
+        }
+    }
+
+    _player->update(dt, dynamicGroundRects);  // 使用包含罐子平台的碰撞列表
+
+    // ========================================
+    // 2. 获取玩家位置并更新坐标显示
+    // ========================================
+    Vec2 playerPos = _player->getPosition();
+
+    if (_coordLabel)
+    {
+        char coordText[100];
+        sprintf(coordText, "Player: (%.0f, %.0f)", playerPos.x, playerPos.y);
+        _coordLabel->setString(coordText);
+    }
+
+    // ========================================
+    // 3. 相机立即跟随玩家
+    // ========================================
+    Size visibleSize = Director::getInstance()->getVisibleSize();
+    Size mapSize = map->getContentSize();
+    float scaleValue = _gameLayer->getScale();
+
+    float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
+    float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
+
+    float scaledMapWidth = mapSize.width * scaleValue;
+    float scaledMapHeight = mapSize.height * scaleValue;
+
+    float minX = -(scaledMapWidth - visibleSize.width);
+    float maxX = 0.0f;
+    float minY = -(scaledMapHeight - visibleSize.height);
+    float maxY = 0.0f;
+
+    if (scaledMapWidth > visibleSize.width) {
+        targetX = std::max(minX, std::min(targetX, maxX));
+    }
+    else {
+        targetX = (visibleSize.width - scaledMapWidth) * 0.5f;
+    }
+
+    if (scaledMapHeight > visibleSize.height) {
+        targetY = std::max(minY, std::min(targetY, maxY));
+    }
+    else {
+        targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
+    }
+
+    _gameLayer->setPosition(targetX, targetY);
+
+    // ========================================
+    // 3. Enemy 碰撞检测逻辑
+    // ========================================
+    auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
+    if (enemy)
+    {
+        Rect enemyBox = enemy->getHitbox();
+        if (!enemyBox.equals(Rect::ZERO))
+        {
+            bool isEnemyHit = false;
+            // A. 攻击检测
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(enemyBox))
                 {
-                    Rect attackBox = _player->getAttackHitbox();
-
-                    if (attackBox.intersectsRect(enemyBox))
-                    {
-                        CCLOG("HIT! Player hit the Enemy!");
-                        enemy->takeDamage(1);
-
-						isEnemyHit = true;  // 标记敌人被击中
-
-						// 如果敌人被击中，玩家执行 pogo 跳跃
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
+                    CCLOG("HIT! Player hit the Enemy!");
+                    enemy->takeDamage(1,  _player->getPosition());  // 传入位置用于击退
+                    isEnemyHit = true;
+                    if (_player->getAttackDir() == -1) {
+                        _player->pogoJump();
                     }
                 }
-				// 2.【修复】检测敌人是否与玩家碰撞
-                if (!isEnemyHit) {  // 只有当敌人未被攻击命中时才检测碰撞
-                    Rect playerBox = _player->getCollisionBox();
-
-                    if (playerBox.intersectsRect(enemyBox))
+            }
+            // B. 碰撞检测
+            if (!isEnemyHit) {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(enemyBox))
+                {
+                    if (!_player->isInvincible())
                     {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG(" Player collided with Enemy!");
-                            _player->takeDamage(1);
-							enemy->onCollideWithPlayer(_player->getPosition()); // 让敌人反应碰撞
-                        }
+                        CCLOG(" Player collided with Enemy!");
+                        _player->takeDamage(1, enemy->getPosition(), _groundRects);
+                        enemy->onCollideWithPlayer(_player->getPosition());
                     }
                 }
             }
         }
+    }
 
-        // ========================================
-        // 4.【修复】Zombie 敌人更新和碰撞检测
-        // ========================================
-        auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
-        if (zombie)
+    // ========================================
+    // 4. Zombie 碰撞检测
+    // ========================================
+    auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
+    if (zombie)
+    {
+        zombie->update(dt, playerPos, _groundRects);
+        Rect zombieBox = zombie->getHitbox();
+
+        if (!zombieBox.equals(Rect::ZERO))
         {
-            zombie->update(dt, playerPos);
-            // 先获取碰撞箱，如果为空则跳过碰撞检测
-            Rect zombieBox = zombie->getHitbox();
-
-            if (!zombieBox.equals(Rect::ZERO))
+            bool isZombieHit = false;
+            if (_player->isAttackPressed())
             {
-				bool isZombieHit = false;
-                if (_player->isAttackPressed())
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(zombieBox))
                 {
-                    Rect attackBox = _player->getAttackHitbox();
-                    if (attackBox.intersectsRect(zombieBox))
-                    {
-                        CCLOG("HIT! Player hit the Zombie!");
-                        zombie->takeDamage(1);
-                        isZombieHit = true;
-
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
+                    CCLOG("HIT! Player hit the Zombie!");
+                    zombie->takeDamage(1,  _player->getPosition());
+                    isZombieHit = true;
+                    if (_player->getAttackDir() == -1) {
+                        _player->pogoJump();
                     }
                 }
+            }
 
-                // B. Body Collision
-                if (!isZombieHit)
+            if (!isZombieHit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(zombieBox))
                 {
-                    Rect playerBox = _player->getCollisionBox();
-                    if (playerBox.intersectsRect(zombieBox))
+                    if (!_player->isInvincible())
                     {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG("Player collided with Zombie body!");
-                            _player->takeDamage(1);
-                            zombie->onCollideWithPlayer(_player->getPosition());
-                        }
+                        CCLOG("Player collided with Zombie body!");
+                        _player->takeDamage(1, zombie->getPosition(), _groundRects);
+                        zombie->onCollideWithPlayer(_player->getPosition());
                     }
                 }
+            }
+        }
+    }
+
+    // ========================================
+    // 5. Spike 陷阱检测
+    // ========================================
+    auto spike = dynamic_cast<Spike*>(_gameLayer->getChildByTag(997));
+    if (spike)
+    {
+        spike->update(dt, playerPos, _groundRects);
+
+        if (_spikeDebugLabel)
+        {
+            char debugText[200];
+            int state = (int)spike->getHitbox().equals(Rect::ZERO) ? -1 : 0;
+            sprintf(debugText, "Spike:(%.0f,%.0f) State:%d Visible:%d",
+                spike->getPosition().x, spike->getPosition().y,
+                state, spike->isVisible());
+            _spikeDebugLabel->setString(debugText);
+        }
+
+        Rect spikeBox = spike->getHitbox();
+        if (!spikeBox.equals(Rect::ZERO))
+        {
+            Rect playerBox = _player->getCollisionBox();
+            if (playerBox.intersectsRect(spikeBox))
+            {
+                if (!_player->isInvincible())
+                {
+                    CCLOG("Player hit by Spike!");
+                    _player->takeDamage(1, spike->getPosition(), _groundRects);
+                }
+            }
+        }
+    }
+    else
+    {
+        if (_spikeDebugLabel) {
+            _spikeDebugLabel->setString("Spike: NOT FOUND (tag 997)");
+            _spikeDebugLabel->setColor(Color3B::RED);
+        }
+    }
+
+    // ========================================
+    // 6. Buzzer 飞行敌人检测
+    // ========================================
+    // Buzzer 1 (tag 996)
+    auto buzzer1 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(996));
+    if (buzzer1)
+    {
+        buzzer1->update(dt, playerPos);
+        Rect buzzer1Box = buzzer1->getHitbox();
+        if (!buzzer1Box.equals(Rect::ZERO))
+        {
+            bool isBuzzer1Hit = false;
+            // 攻击
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(buzzer1Box))
+                {
+                    CCLOG("HIT! Player hit Buzzer 1!");
+                    buzzer1->takeDamage(1,  _player->getPosition());
+                    isBuzzer1Hit = true;
+                    if (_player->getAttackDir() == -1) _player->pogoJump();
+                }
+            }
+            // 碰撞
+            if (!isBuzzer1Hit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(buzzer1Box))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player collided with Buzzer 1!");
+                        _player->takeDamage(1, buzzer1->getPosition(),  _groundRects);
+                        buzzer1->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+    }
+
+    // Buzzer 2 (tag 995)
+    auto buzzer2 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(995));
+    if (buzzer2)
+    {
+        buzzer2->update(dt, playerPos);
+        Rect buzzer2Box = buzzer2->getHitbox();
+        if (!buzzer2Box.equals(Rect::ZERO))
+        {
+            bool isBuzzer2Hit = false;
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(buzzer2Box))
+                {
+                    CCLOG("HIT! Player hit Buzzer 2!");
+                    buzzer2->takeDamage(1, _player->getPosition());
+                    isBuzzer2Hit = true;
+                    if (_player->getAttackDir() == -1) _player->pogoJump();
+                }
+            }
+            if (!isBuzzer2Hit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(buzzer2Box))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player collided with Buzzer 2!");
+                        _player->takeDamage(1, buzzer2->getPosition(), _groundRects);
+                        buzzer2->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+    }
+
+    // ========================================
+    // 7. Jar 罐子碰撞检测
+    // ========================================
+    for (auto jar : _jars)
+    {
+        if (!jar || jar->isDestroyed()) continue;
+
+        // A. 玩家攻击罐子
+        if (_player->isAttackPressed())
+        {
+            Rect attackBox = _player->getAttackHitbox();
+            Rect jarBox = jar->getCollisionBox();
+
+            if (!jarBox.equals(Rect::ZERO) && attackBox.intersectsRect(jarBox))
+            {
+                CCLOG("Player hit the jar!");
+                jar->takeDamage();
+                // 罐子也是可以下劈的
+                if (_player->getAttackDir() == -1) {
+                    _player->pogoJump();
+                }
+            }
+        }
+
+        // B. 玩家与罐子的物理碰撞（像墙一样阻挡）
+        if (!jar->isDestroyed())
+        {
+            Rect playerBox = _player->getCollisionBox();
+            Rect jarBox = jar->getCollisionBox();
+
+            if (!jarBox.equals(Rect::ZERO) && playerBox.intersectsRect(jarBox))
+            {
+                // 简单的推出处理
+                float overlapLeft = (playerBox.getMaxX() - jarBox.getMinX());
+                float overlapRight = (jarBox.getMaxX() - playerBox.getMinX());
+
+                if (overlapLeft < overlapRight) {
+                    _player->setPositionX(jarBox.getMinX() - playerBox.size.width / 2);
+                }
+                else {
+                    _player->setPositionX(jarBox.getMaxX() + playerBox.size.width / 2);
+                }
+                _player->setVelocityX(0);
             }
         }
     }
@@ -494,4 +709,138 @@ void HelloWorld::update(float dt)
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
     Director::getInstance()->end();
+}
+
+// ========================================
+// 加载地图的通用方法
+// ========================================
+void HelloWorld::loadMap(const std::string& mapPath)
+{
+    // 1. 清除旧地图
+    auto oldMap = _gameLayer->getChildByTag(123);
+    if (oldMap) oldMap->removeFromParent();
+
+    // 2. 清除旧的碰撞框绘制节点
+    auto oldDrawNode = dynamic_cast<DrawNode*>(_gameLayer->getChildByTag(1000));
+    if (oldDrawNode) oldDrawNode->removeFromParent();
+
+    // 3. 清除旧的敌人（切换到 Level 2 时清理 Level 1 的）
+    if (_currentLevel == 2)
+    {
+        auto enemy = _gameLayer->getChildByTag(999);
+        if (enemy) enemy->removeFromParent();
+
+        auto zombie = _gameLayer->getChildByTag(998);
+        if (zombie) zombie->removeFromParent();
+
+        auto spike = _gameLayer->getChildByTag(997);
+        if (spike) spike->removeFromParent();
+
+        auto buzzer1 = _gameLayer->getChildByTag(996);
+        if (buzzer1) buzzer1->removeFromParent();
+
+        auto buzzer2 = _gameLayer->getChildByTag(995);
+        if (buzzer2) buzzer2->removeFromParent();
+
+        auto oldFireball = _gameLayer->getChildByTag(987);
+        if (oldFireball) oldFireball->removeFromParent();
+    }
+
+    // 4. 加载新地图
+    auto map = TMXTiledMap::create(mapPath);
+    if (map == nullptr) {
+        CCLOG("Error: Failed to load %s", mapPath.c_str());
+        return;
+    }
+
+    map->setAnchorPoint(Vec2(0, 0));
+    map->setPosition(Vec2(0, 0));
+    map->setTag(123);
+    _gameLayer->addChild(map, -99);
+
+    // 5. 解析碰撞数据
+    this->parseMapCollisions(map);
+
+    // 6. 绘制调试碰撞框
+    auto drawNode = DrawNode::create();
+    drawNode->setTag(1000);
+    _gameLayer->addChild(drawNode, 999);
+
+    for (const auto& rect : _groundRects)
+    {
+        drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
+    }
+
+    CCLOG("========== Map Loaded: %s ==========", mapPath.c_str());
+
+    // 【新增】如果是 level2，创建罐子和幼虫
+    if (_currentLevel == 2)
+    {
+        _jars.clear();
+
+        float startX = 1700.0f;
+        float spacing = 700.0f;
+        float jarY = 346.0f;
+
+        for (int i = 0; i < 3; i++)
+        {
+            float jarX = startX + i * spacing;
+            auto jar = Jar::create("warm/jar.png", Vec2(jarX, jarY));
+
+            if (jar)
+            {
+                jar->setTag(990 - i);
+                _gameLayer->addChild(jar, 5);
+                _jars.push_back(jar);
+            }
+        }
+
+        // 创建 Fireball
+        auto fireball = Fireball::create("fireball/fireball_1.png");
+        if (fireball)
+        {
+            fireball->setPosition(Vec2(5529.0f, 650.0f));
+            fireball->setTag(987);
+            _gameLayer->addChild(fireball, 5);
+        }
+    }
+}
+
+// ========================================
+// 切换到Level2的方法
+// ========================================
+void HelloWorld::switchToLevel2()
+{
+    if (_isTransitioning || _currentLevel == 2) return;
+
+    _isTransitioning = true;
+    CCLOG("========== Switching to Level 2 ==========");
+
+    auto blackLayer = LayerColor::create(Color4B::BLACK);
+    blackLayer->setOpacity(0);
+    this->addChild(blackLayer, 999);
+
+    auto fadeIn = FadeTo::create(0.5f, 255);
+
+    auto switchMap = CallFunc::create([this]() {
+        _currentLevel = 2;
+        loadMap("maps/level2.tmx");
+
+        if (_player)
+        {
+            _player->setPosition(Vec2(400, 1300));
+            _player->setVelocityX(0);
+        }
+        });
+
+    auto delay = DelayTime::create(0.3f);
+    auto fadeOut = FadeTo::create(0.5f, 0);
+
+    auto cleanup = CallFunc::create([this, blackLayer]() {
+        blackLayer->removeFromParent();
+        _isTransitioning = false;
+        CCLOG("========== Level 2 loaded successfully ==========");
+        });
+
+    blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
 }

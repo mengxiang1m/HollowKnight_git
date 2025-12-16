@@ -33,7 +33,7 @@ namespace Config {
         const int FRAMES_QUARTER = 4;
         const int FRAMES_HALF = 4;
         const int FRAMES_3QUARTER = 4;
-        const int FRAMES_FULL = 10;
+        const int FRAMES_FULL = 5;
     }
 
     namespace Health {

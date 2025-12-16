@@ -55,6 +55,9 @@ private:
     // 解析地图碰撞框的辅助函数
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
+    // 罐子列表
+    std::vector<class Jar*> _jars;
+
     //键盘状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;
@@ -63,6 +66,27 @@ private:
 
     // 辅助函数：根据当前按键状态更新主角速度
     void updatePlayerMovement();
+
+    // 坐标显示标签
+    cocos2d::Label* _coordLabel;
+
+    // 调试用DrawNode
+    cocos2d::DrawNode* _debugDrawNode;
+
+    // Spike调试信息标签
+    cocos2d::Label* _spikeDebugLabel;
+
+    // ========================================
+    // 场景切换相关成员变量
+    // ========================================
+    int _currentLevel = 1;           // 当前关卡编号
+    bool _isTransitioning = false;   // 是否正在场景切换
+
+    // ========================================
+    // 场景切换方法
+    // ========================================
+    void loadMap(const std::string& mapPath);  // 加载地图
+    void switchToLevel2();
 };
 
 #endif // __HELLOWORLD_SCENE_H__

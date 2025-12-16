@@ -8,22 +8,18 @@ Zombie* Zombie::create(const std::string& filename)
     if (zombie && zombie->initWithFile(filename) && zombie->init())
     {
         zombie->autorelease();
-        CCLOG("? [Zombie::create] Succeeded with file: %s", filename.c_str());
+        CCLOG("? [Zombie::create] Succeeded: %s", filename.c_str());
         return zombie;
     }
-    CCLOG("? [Zombie::create] FAILED with file: %s", filename.c_str());
     CC_SAFE_DELETE(zombie);
     return nullptr;
 }
 
 bool Zombie::init()
 {
-    if (!Sprite::init())
-    {
-        return false;
-    }
+    if (!Sprite::init()) return false;
 
-    // 初始化属性
+    // 初始化状态与属性
     _currentState = State::PATROL;
     _health = 5;
     _maxHealth = 5;
@@ -31,494 +27,383 @@ bool Zombie::init()
     _attackSpeed = 200.0f;
     _movingRight = true;
     _isFacingRight = true;
+    _isInvincible = false;
 
+    // AI 参数
     _patrolLeftBound = 0.0f;
     _patrolRightBound = 300.0f;
-
-    // 检测范围 (约半个屏幕)
     _detectionRange = 400.0f;
 
-    // 【修改】追逐范围限制 (1个屏幕宽度)
+    // 【来自 File 2】追逐范围限制 (全屏宽度)
     auto visibleSize = Director::getInstance()->getVisibleSize();
     _maxChaseRange = visibleSize.width * 1.0f;
+    _spawnPosition = Vec2::ZERO; // 稍后更新
 
-    // 【新增】记录初始出生位置
-    _spawnPosition = Vec2::ZERO; // 稍后在场景中设置位置时会更新
+    // 【来自 File 1】物理参数初始化
+    _velocity = Vec2::ZERO;
+    _isOnGround = false;
+    _gravity = 2000.0f;
+    _maxFallSpeed = -1500.0f;
 
     loadAnimations();
     playWalkAnimation();
-
-    CCLOG("? [Zombie::init] Zombie initialized successfully!");
 
     return true;
 }
 
 void Zombie::loadAnimations()
 {
-    // ========================================
-    // 加载走路动画 (7帧)
-    // ========================================
+    // --- 走路动画 ---
     Vector<SpriteFrame*> walkFrames;
-
-    for (int i = 1; i <= 7; i++)
-    {
-        std::string frameName = StringUtils::format("zombie/walk/walk_%d.png", i);
-
-        auto testSprite = Sprite::create(frameName);
-        if (testSprite)
-        {
-            auto frame = testSprite->getSpriteFrame();
-            walkFrames.pushBack(frame);
-            CCLOG("  ? Loaded walk frame: %s", frameName.c_str());
-        }
-        else
-        {
-            CCLOG("  ? Failed to load walk frame: %s", frameName.c_str());
-        }
+    for (int i = 1; i <= 7; i++) {
+        auto sprite = Sprite::create(StringUtils::format("zombie/walk/walk_%d.png", i));
+        if (sprite) walkFrames.pushBack(sprite->getSpriteFrame());
     }
-
-    if (walkFrames.size() > 0)
-    {
+    if (!walkFrames.empty()) {
         _walkAnimation = Animation::createWithSpriteFrames(walkFrames, 0.15f);
         _walkAnimation->retain();
-        CCLOG("? Walk animation created with %d frames", (int)walkFrames.size());
-    }
-    else
-    {
-        _walkAnimation = nullptr;
     }
 
-    // ========================================
-    // 加载准备攻击动画 (5帧)
-    // ========================================
-    Vector<SpriteFrame*> attackReadyFrames;
-
-    for (int i = 1; i <= 5; i++)
-    {
-        std::string frameName = StringUtils::format("zombie/attack/attackReady_%d.png", i);
-
-        auto testSprite = Sprite::create(frameName);
-        if (testSprite)
-        {
-            auto frame = testSprite->getSpriteFrame();
-            attackReadyFrames.pushBack(frame);
-            CCLOG("  ? Loaded attackReady frame: %s", frameName.c_str());
-        }
-        else
-        {
-            CCLOG("  ? Failed to load attackReady frame: %s", frameName.c_str());
-        }
+    // --- 准备攻击动画 ---
+    Vector<SpriteFrame*> readyFrames;
+    for (int i = 1; i <= 5; i++) {
+        auto sprite = Sprite::create(StringUtils::format("zombie/attack/attackReady_%d.png", i));
+        if (sprite) readyFrames.pushBack(sprite->getSpriteFrame());
     }
-
-    if (attackReadyFrames.size() > 0)
-    {
-        _attackReadyAnimation = Animation::createWithSpriteFrames(attackReadyFrames, 0.1f);
+    if (!readyFrames.empty()) {
+        _attackReadyAnimation = Animation::createWithSpriteFrames(readyFrames, 0.1f);
         _attackReadyAnimation->retain();
-        CCLOG("? AttackReady animation created with %d frames", (int)attackReadyFrames.size());
-    }
-    else
-    {
-        _attackReadyAnimation = nullptr;
     }
 
-    // ========================================
-    // 加载攻击动画 (3帧)
-    // ========================================
+    // --- 攻击动画 ---
     Vector<SpriteFrame*> attackFrames;
-
-    for (int i = 1; i <= 3; i++)
-    {
-        std::string frameName = StringUtils::format("zombie/attack/attack_%d.png", i);
-
-        auto testSprite = Sprite::create(frameName);
-        if (testSprite)
-        {
-            auto frame = testSprite->getSpriteFrame();
-            attackFrames.pushBack(frame);
-            CCLOG("  ? Loaded attack frame: %s", frameName.c_str());
-        }
-        else
-        {
-            CCLOG("  ? Failed to load attack frame: %s", frameName.c_str());
-        }
+    for (int i = 1; i <= 3; i++) {
+        auto sprite = Sprite::create(StringUtils::format("zombie/attack/attack_%d.png", i));
+        if (sprite) attackFrames.pushBack(sprite->getSpriteFrame());
     }
-
-    if (attackFrames.size() > 0)
-    {
+    if (!attackFrames.empty()) {
         _attackAnimation = Animation::createWithSpriteFrames(attackFrames, 0.1f);
         _attackAnimation->retain();
-        CCLOG("? Attack animation created with %d frames", (int)attackFrames.size());
-    }
-    else
-    {
-        _attackAnimation = nullptr;
-    }
-
-    _deathAnimation = nullptr;
-}
-
-void Zombie::playWalkAnimation()
-{
-    if (_walkAnimation)
-    {
-        // 【修复】只停止动画动作，不停止颜色恢复动作
-        this->stopActionByTag(100); // 只停止动画相关的动作
-
-        auto animate = Animate::create(_walkAnimation);
-        auto repeat = RepeatForever::create(animate);
-        repeat->setTag(100); // 设置动画标签
-        this->runAction(repeat);
-        CCLOG("?? Playing walk animation");
     }
 }
 
-void Zombie::playAttackReadyAnimation()
-{
-    if (_attackReadyAnimation)
-    {
-        // 【修复】只停止动画動作，不停止顏色恢復動作
+// ========================================
+// 动画播放函数 (带状态保护)
+// ========================================
+void Zombie::playWalkAnimation() {
+    if (_walkAnimation) {
         this->stopActionByTag(100);
+        auto act = RepeatForever::create(Animate::create(_walkAnimation));
+        act->setTag(100);
+        this->runAction(act);
+    }
+}
 
+void Zombie::playAttackReadyAnimation() {
+    if (_attackReadyAnimation) {
+        this->stopActionByTag(100);
         auto animate = Animate::create(_attackReadyAnimation);
         animate->setTag(100);
         this->runAction(animate);
 
-        float animDuration = _attackReadyAnimation->getDuration();
-        this->scheduleOnce([this](float dt) {
+        // 动画播完自动进入攻击状态
+        this->scheduleOnce([this](float) {
             changeState(State::ATTACKING);
-            }, animDuration, "attack_ready_end");
-
-        CCLOG("? Playing attack ready animation");
+            }, _attackReadyAnimation->getDuration(), "ready_end");
     }
 }
 
-void Zombie::playAttackAnimation()
-{
-    if (_attackAnimation)
-    {
-        // 【修復】只停止動畫動作，不停止顏色恢復動作
+void Zombie::playAttackAnimation() {
+    if (_attackAnimation) {
         this->stopActionByTag(100);
-
-        auto animate = Animate::create(_attackAnimation);
-        auto repeat = RepeatForever::create(animate);
-        repeat->setTag(100);
-        this->runAction(repeat);
-        CCLOG("?? Playing attack animation");
+        auto act = RepeatForever::create(Animate::create(_attackAnimation));
+        act->setTag(100);
+        this->runAction(act);
     }
 }
 
-void Zombie::playDeathAnimation()
-{
-    // 【修复】停止所有动作（死亡时可以停止所有）
-    this->stopAllActions();
-
-    auto fadeOut = FadeOut::create(0.5f);
-    auto rotateBy = RotateBy::create(0.5f, 180);
-    auto spawn = Spawn::create(fadeOut, rotateBy, nullptr);
-
-    auto removeSelf = CallFunc::create([this]() {
-        this->removeFromParent();
-        CCLOG("?? Zombie removed from scene");
-        });
-
-    auto sequence = Sequence::create(spawn, removeSelf, nullptr);
-    this->runAction(sequence);
+void Zombie::playDeathAnimation() {
+    this->stopAllActions(); // 死亡停止一切
+    auto seq = Sequence::create(
+        Spawn::create(FadeOut::create(0.5f), RotateBy::create(0.5f, 180), nullptr),
+        CallFunc::create([this]() { this->removeFromParent(); }),
+        nullptr
+    );
+    this->runAction(seq);
 }
 
 // ========================================
-// AI 核心更新函数
+// 核心 Update (融合 AI 与 物理)
 // ========================================
-void Zombie::update(float dt, const cocos2d::Vec2& playerPos)
+void Zombie::update(float dt, const cocos2d::Vec2& playerPos, const std::vector<cocos2d::Rect>& platforms)
 {
-    if (_currentState == State::DEAD || _currentState == State::DAMAGED)
-    {
+    if (_currentState == State::DEAD) return;
+
+    // 1. 初始化出生点 (用于追逐范围判断)
+    if (_spawnPosition == Vec2::ZERO) _spawnPosition = this->getPosition();
+
+    // 2. 边界检查 (防掉出地图)
+    if (this->getPositionY() < -200.0f) {
+        this->removeFromParent();
         return;
     }
 
-    // 【新增】记录第一次设置位置时的出生点
-    if (_spawnPosition == Vec2::ZERO)
-    {
-        _spawnPosition = this->getPosition();
-        CCLOG("[Zombie] Spawn position set to (%.0f, %.0f)", _spawnPosition.x, _spawnPosition.y);
+    // ===================================
+    // 3. 物理系统：Y轴 (重力与地面)
+    // ===================================
+    updateMovementY(dt);
+    updateCollisionY(platforms);
+
+    // 受伤状态下只应用物理，不思考
+    if (_currentState == State::DAMAGED) {
+        updateMovementX(dt);
+        updateCollisionX(platforms);
+        return;
     }
 
-    // 根据状态执行不同的行为
+    // ===================================
+    // 4. AI 决策系统
+    // ===================================
     switch (_currentState)
     {
     case State::PATROL:
-        // 检测玩家
-        if (isPlayerInRange(playerPos))
-        {
-            // 转向玩家
-            float directionToPlayer = playerPos.x - this->getPositionX();
-            _isFacingRight = (directionToPlayer > 0);
+        if (isPlayerInRange(playerPos)) {
+            // 发现玩家 -> 转向并准备攻击
+            float dir = playerPos.x - this->getPositionX();
+            _isFacingRight = (dir > 0);
             this->setFlippedX(!_isFacingRight);
-
             changeState(State::ATTACK_READY);
         }
-        else
-        {
+        else {
             updatePatrolBehavior(dt);
         }
         break;
 
     case State::ATTACK_READY:
-        // 在原地播放准备动画
+        _velocity.x = 0; // 准备时不动
         break;
 
     case State::ATTACKING:
-        // 【修改】检查是否超出追逐范围
-        if (!isPlayerInChaseRange(playerPos))
-        {
-            CCLOG("[Zombie] Player out of chase range, returning to patrol");
+        // 检查追逐范围
+        if (!isPlayerInChaseRange(playerPos)) {
+            CCLOG("[Zombie] Player too far, give up.");
             changeState(State::PATROL);
         }
-        else
-        {
+        else {
             updateAttackBehavior(dt, playerPos);
         }
         break;
 
-    default:
-        break;
+    default: break;
+    }
+
+    // ===================================
+    // 5. 物理系统：X轴 (移动与墙壁)
+    // ===================================
+    // 只有非静止状态才需要更新X物理
+    if (_velocity.x != 0) {
+        updateMovementX(dt);
+        updateCollisionX(platforms);
     }
 }
 
-bool Zombie::isPlayerInRange(const cocos2d::Vec2& playerPos)
-{
-    float distance = std::abs(playerPos.x - this->getPositionX());
-    return distance <= _detectionRange;
+// ========================================
+// AI 行为逻辑
+// ========================================
+bool Zombie::isPlayerInRange(const cocos2d::Vec2& playerPos) {
+    return std::abs(playerPos.x - this->getPositionX()) <= _detectionRange;
 }
 
-// 【新增】检查玩家是否在追逐范围内
-bool Zombie::isPlayerInChaseRange(const cocos2d::Vec2& playerPos)
-{
-    float distanceFromSpawn = std::abs(playerPos.x - _spawnPosition.x);
-    return distanceFromSpawn <= _maxChaseRange;
+bool Zombie::isPlayerInChaseRange(const cocos2d::Vec2& playerPos) {
+    return std::abs(playerPos.x - _spawnPosition.x) <= _maxChaseRange;
 }
 
-void Zombie::updatePatrolBehavior(float dt)
-{
-    Vec2 currentPos = this->getPosition();
-
-    if (_movingRight)
-    {
-        currentPos.x += _moveSpeed * dt;
-
-        if (currentPos.x >= _patrolRightBound)
-        {
+void Zombie::updatePatrolBehavior(float dt) {
+    if (_movingRight) {
+        _velocity.x = _moveSpeed;
+        if (getPositionX() >= _patrolRightBound) {
             _movingRight = false;
             _isFacingRight = false;
             this->setFlippedX(true);
         }
     }
-    else
-    {
-        currentPos.x -= _moveSpeed * dt;
-
-        if (currentPos.x <= _patrolLeftBound)
-        {
+    else {
+        _velocity.x = -_moveSpeed;
+        if (getPositionX() <= _patrolLeftBound) {
             _movingRight = true;
             _isFacingRight = true;
             this->setFlippedX(false);
         }
     }
-
-    this->setPosition(currentPos);
 }
 
-void Zombie::updateAttackBehavior(float dt, const cocos2d::Vec2& playerPos)
-{
-    Vec2 currentPos = this->getPosition();
-    float directionToPlayer = playerPos.x - currentPos.x;
+void Zombie::updateAttackBehavior(float dt, const cocos2d::Vec2& playerPos) {
+    float dir = playerPos.x - getPositionX();
 
-    if (_isFacingRight && directionToPlayer > 0)
-    {
-        currentPos.x += _attackSpeed * dt;
-    }
-    else if (!_isFacingRight && directionToPlayer < 0)
-    {
-        currentPos.x -= _attackSpeed * dt;
-    }
-    else
-    {
-        // 玩家在身后，恢复巡逻状态
+    // 简单的追逐逻辑
+    if (_isFacingRight && dir > 0) _velocity.x = _attackSpeed;
+    else if (!_isFacingRight && dir < 0) _velocity.x = -_attackSpeed;
+    else {
+        // 玩家跑到身后了 -> 放弃攻击，继续巡逻
         changeState(State::PATROL);
     }
-
-    this->setPosition(currentPos);
 }
 
-void Zombie::takeDamage(int damage)
+// ========================================
+// 受击与物理反馈
+// ========================================
+void Zombie::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
 {
-    // 1. 如果已经死亡 或 处于无敌状态，直接返回
-    if (_currentState == State::DEAD || _currentState == State::DAMAGED || _isInvincible)
-    {
+    if (_currentState == State::DEAD || _currentState == State::DAMAGED || _isInvincible) return;
+
+    _health -= damage;
+    _isInvincible = true;
+    CCLOG("Zombie Hit! HP: %d", _health);
+
+    // 1. 死亡判定
+    if (_health <= 0) {
+        changeState(State::DEAD);
+        // 【核心】触发回调（加魂、统计等）
+        if (_onDeathCallback) _onDeathCallback();
         return;
     }
 
-    // 2. 开启无敌
-    _isInvincible = true;
-    _health -= damage;
-    CCLOG("?? Zombie took %d damage! Health: %d/%d", damage, _health, _maxHealth);
-
-    Vec2 currentPos = this->getPosition();
-
-    State previousState = _currentState;
+    State lastState = _currentState;
     changeState(State::DAMAGED);
 
-    // ========================================
-    // 【修复】受击闪烁效果 - 确保恢复原始颜色和透明度
-    // ========================================
-    // 1. 停止之前的所有颜色相关动作
+    // 2. 物理击退 (Velocity Impulse)
+    // 使用速度而非 MoveTo，这样会被物理系统处理，不会穿墙
+    float dir = (getPositionX() - attackerPos.x) > 0 ? 1.0f : -1.0f;
+    _velocity.x = dir * 300.0f; // 水平击退速度
+    _velocity.y = 200.0f;       // 小跳一下
+
+    // 3. 闪烁反馈
     this->stopActionByTag(888);
+    auto blink = Sequence::create(
+        Repeat::create(Sequence::create(TintTo::create(0.1f, 255, 0, 0), TintTo::create(0.1f, 255, 255, 255), nullptr), 2),
+        CallFunc::create([this]() { this->setColor(Color3B::WHITE); this->setOpacity(255); }),
+        nullptr
+    );
+    blink->setTag(888);
+    this->runAction(blink);
 
-    // 2. 创建闪烁序列（红色 -> 白色）重复2次
-    auto tintRed = TintTo::create(0.1f, 255, 0, 0);
-    auto tintNormal = TintTo::create(0.1f, 255, 255, 255);
-    auto blink = Sequence::create(tintRed, tintNormal, nullptr);
-    auto repeat = Repeat::create(blink, 2);
-
-    // 3. 在闪烁结束后强制恢复原始颜色
-    auto resetColor = CallFunc::create([this]() {
-        this->setColor(Color3B::WHITE);
-        this->setOpacity(255);
-        CCLOG("? Zombie color restored to original");
-        });
-
-    auto blinkSequence = Sequence::create(repeat, resetColor, nullptr);
-    blinkSequence->setTag(888);
-    this->runAction(blinkSequence);
-
-    // 击退效果
-    float knockbackDistance = 50.0f;
-    float knockbackDuration = 0.3f;
-    float direction = _isFacingRight ? -1.0f : 1.0f;
-
-    Vec2 knockbackTarget = Vec2(currentPos.x + direction * knockbackDistance, currentPos.y);
-
-    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
-    auto easeOut = EaseOut::create(knockback, 2.0f);
-    this->runAction(easeOut);
-
-    // 0.3秒后恢复之前的状态
-    this->scheduleOnce([this, previousState](float dt) {
-        if (_currentState == State::DAMAGED)
-        {
-            if (previousState == State::ATTACKING)
-            {
-                changeState(State::PATROL);
-            }
-            else
-            {
-                changeState(previousState);
-            }
+    // 4. 恢复状态
+    this->scheduleOnce([this, lastState](float) {
+        if (_currentState == State::DAMAGED) {
+            _velocity.x = 0; // 停下
+            // 如果之前在攻击，恢复巡逻比较安全
+            changeState(State::PATROL);
         }
-        }, 0.3f, "damage_recovery");
+        }, 0.3f, "recover_state");
 
-    // 检查是否死亡
-    if (_health <= 0)
-    {
-        CCLOG("? Zombie defeated!");
-        changeState(State::DEAD);
+    // 5. 恢复无敌
+    this->scheduleOnce([this](float) { _isInvincible = false; }, 0.2f, "recover_invincible");
+}
 
-        if (_onDeathCallback)
-        {
-            _onDeathCallback(); // 执行回调！
-        }
-    }
+void Zombie::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
+{
+    if (_currentState == State::DEAD || _currentState == State::DAMAGED) return;
 
-    // 3. 设置定时器关闭无敌 (0.2秒后恢复)
-    this->scheduleOnce([this](float dt) {
-        _isInvincible = false;
-        }, 0.2f, "invincible_cooldown");
+    // 简单的物理反弹
+    float dir = (getPositionX() - playerPos.x) > 0 ? 1.0f : -1.0f;
+    _velocity.x = dir * 150.0f; // 弹开一点点
+
+    // 0.2秒后摩擦力停下
+    this->scheduleOnce([this](float) {
+        if (_currentState != State::DAMAGED) _velocity.x = 0;
+        }, 0.2f, "stop_bounce");
 }
 
 void Zombie::changeState(State newState)
 {
-    if (_currentState == newState)
-    {
-        return;
-    }
-
+    if (_currentState == newState) return;
     _currentState = newState;
 
-    switch (_currentState)
-    {
-    case State::PATROL:
-        playWalkAnimation();
-        break;
-
-    case State::ATTACK_READY:
-        playAttackReadyAnimation();
-        break;
-
-    case State::ATTACKING:
-        playAttackAnimation();
-        break;
-
-    case State::DEAD:
-        playDeathAnimation();
-        break;
-
-    case State::DAMAGED:
-        // 不切换动画，保持当前动画
-        break;
+    switch (_currentState) {
+    case State::PATROL: playWalkAnimation(); break;
+    case State::ATTACK_READY: playAttackReadyAnimation(); break;
+    case State::ATTACKING: playAttackAnimation(); break;
+    case State::DEAD: playDeathAnimation(); break;
+    case State::DAMAGED: break; // 保持动作
     }
 }
 
-void Zombie::setPatrolRange(float leftBound, float rightBound)
-{
-    _patrolLeftBound = leftBound;
-    _patrolRightBound = rightBound;
-    CCLOG("[Zombie] Patrol range set: %.0f to %.0f", leftBound, rightBound);
+void Zombie::setPatrolRange(float left, float right) {
+    _patrolLeftBound = left;
+    _patrolRightBound = right;
 }
 
-cocos2d::Rect Zombie::getHitbox() const
-{
-    // 【新增】死亡状态不返回碰撞箱
-    if (_currentState == State::DEAD)
-    {
-        return Rect::ZERO;
-    }
-
-    return this->getBoundingBox();
+cocos2d::Rect Zombie::getHitbox() const {
+    if (_currentState == State::DEAD) return Rect::ZERO;
+    // 稍微降低高度，更加贴合视觉
+    Rect box = this->getBoundingBox();
+    box.size.height *= 0.7f;
+    return box;
 }
 
 // ========================================
-// 【新增】碰到主角时的击退反应
+// 物理引擎核心 (来自 File 1)
 // ========================================
-void Zombie::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
-{
-    if (_currentState == State::DEAD || _currentState == State::DAMAGED)
-    {
-        return;
-    }
-
-    // 计算僵尸相对玩家的方向
-    Vec2 zombiePos = this->getPosition();
-    float directionX = zombiePos.x - playerPos.x;
-
-    // 根据相对位置决定击退方向
-    float knockbackDirection = (directionX > 0) ? 1.0f : -1.0f;
-
-    // 击退参数（僵尸更重，击退距离稍小）
-    float knockbackDistance = 30.0f;  // 比普通敌人稍小
-    float knockbackDuration = 0.2f;   // 稍慢一点
-
-    // 计算目标位置
-    Vec2 knockbackTarget = Vec2(zombiePos.x + knockbackDirection * knockbackDistance, zombiePos.y);
-
-    // 执行击退动作
-    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
-    auto easeOut = EaseOut::create(knockback, 2.0f);
-    this->runAction(easeOut);
-
-    CCLOG("[Zombie] Knocked back by player collision");
+void Zombie::updateMovementY(float dt) {
+    _velocity.y -= _gravity * dt;
+    if (_velocity.y < _maxFallSpeed) _velocity.y = _maxFallSpeed;
+    setPositionY(getPositionY() + _velocity.y * dt);
 }
 
-Zombie::~Zombie()
-{
+void Zombie::updateCollisionY(const std::vector<cocos2d::Rect>& platforms) {
+    _isOnGround = false;
+    Rect rect = this->getBoundingBox();
+    for (const auto& wall : platforms) {
+        if (rect.intersectsRect(wall)) {
+            float overlapX = std::min(rect.getMaxX(), wall.getMaxX()) - std::max(rect.getMinX(), wall.getMinX());
+            if (overlapX > rect.size.width * 0.3f) {
+                if (_velocity.y <= 0) { // 下落
+                    float overlapY = wall.getMaxY() - rect.getMinY();
+                    if (overlapY > -0.1f && overlapY <= 40.0f) {
+                        setPositionY(wall.getMaxY() + rect.size.height * 0.5f);
+                        _velocity.y = 0;
+                        _isOnGround = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Zombie::updateMovementX(float dt) {
+    setPositionX(getPositionX() + _velocity.x * dt);
+}
+
+void Zombie::updateCollisionX(const std::vector<cocos2d::Rect>& platforms) {
+    Rect rect = this->getBoundingBox();
+    for (const auto& wall : platforms) {
+        if (rect.intersectsRect(wall)) {
+            float overlapY = std::min(rect.getMaxY(), wall.getMaxY()) - std::max(rect.getMinY(), wall.getMinY());
+            if (overlapY > rect.size.height * 0.5f) {
+                if (_velocity.x > 0) { // 向右撞
+                    setPositionX(wall.getMinX() - rect.size.width * 0.5f - 0.1f);
+                    _velocity.x = 0;
+                    if (_currentState == State::PATROL) { // 自动转向
+                        _movingRight = false;
+                        _isFacingRight = false;
+                        this->setFlippedX(true);
+                    }
+                }
+                else if (_velocity.x < 0) { // 向左撞
+                    setPositionX(wall.getMaxX() + rect.size.width * 0.5f + 0.1f);
+                    _velocity.x = 0;
+                    if (_currentState == State::PATROL) {
+                        _movingRight = true;
+                        _isFacingRight = true;
+                        this->setFlippedX(false);
+                    }
+                }
+            }
+        }
+    }
+}
+
+Zombie::~Zombie() {
     CC_SAFE_RELEASE(_walkAnimation);
     CC_SAFE_RELEASE(_attackReadyAnimation);
     CC_SAFE_RELEASE(_attackAnimation);
