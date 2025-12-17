@@ -15,6 +15,7 @@ class PlayerState;
 class Player : public cocos2d::Sprite
 {
 public:
+    virtual ~Player(); // 析构函数
     static Player* create(const std::string& filename = "");
     virtual bool init() override;
 
@@ -57,6 +58,7 @@ public:
     void executeHeal(); // 执行回血
     bool canFocus() const; // 是否满足凝聚条件
 
+
     // 魂量操作 (转发给 Stats)
     void gainSoul(int amount);
     void gainSoulOnKill();
@@ -64,6 +66,7 @@ public:
     // 数据获取 (直接从 Stats 组件读取)
     int getHealth() const { return _stats ? _stats->getHealth() : 0; }
     int getMaxHealth() const { return _stats ? _stats->getMaxHealth() : 0; }
+    float getVelocityX();
     PlayerStats* getStats() const { return _stats; }
 
     // ==========================================
@@ -126,6 +129,7 @@ private:
     cocos2d::Size _bodySize;
     cocos2d::Vec2 _bodyOffset;
     cocos2d::Rect _localBodyRect;
+    cocos2d::Vec2 _lastSafePosition;// 记录上一次安全落地的位置
 
     bool _isOnGround;
     bool _isFacingRight;

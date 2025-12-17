@@ -465,6 +465,8 @@ void HelloWorld::update(float dt)
     auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
     if (enemy)
     {
+        // 防止在此帧内因死亡被回收
+        enemy->retain();
         Rect enemyBox = enemy->getHitbox();
         if (!enemyBox.equals(Rect::ZERO))
         {
@@ -497,6 +499,8 @@ void HelloWorld::update(float dt)
                 }
             }
         }
+        // 解锁
+        enemy->release();
     }
 
     // ========================================
@@ -505,6 +509,8 @@ void HelloWorld::update(float dt)
     auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
     if (zombie)
     {
+        zombie->retain();
+
         zombie->update(dt, playerPos, _groundRects);
         Rect zombieBox = zombie->getHitbox();
 
@@ -539,6 +545,7 @@ void HelloWorld::update(float dt)
                 }
             }
         }
+        zombie->release();
     }
 
     // ========================================
@@ -580,7 +587,7 @@ void HelloWorld::update(float dt)
             _spikeDebugLabel->setColor(Color3B::RED);
         }
     }
-
+	
     // ========================================
     // 6. Buzzer 飞行敌人检测
     // ========================================
@@ -588,6 +595,7 @@ void HelloWorld::update(float dt)
     auto buzzer1 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(996));
     if (buzzer1)
     {
+		buzzer1->retain();
         buzzer1->update(dt, playerPos);
         Rect buzzer1Box = buzzer1->getHitbox();
         if (!buzzer1Box.equals(Rect::ZERO))
@@ -620,12 +628,13 @@ void HelloWorld::update(float dt)
                 }
             }
         }
+		buzzer1->release();
     }
-
     // Buzzer 2 (tag 995)
     auto buzzer2 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(995));
     if (buzzer2)
     {
+		buzzer2->retain();
         buzzer2->update(dt, playerPos);
         Rect buzzer2Box = buzzer2->getHitbox();
         if (!buzzer2Box.equals(Rect::ZERO))
@@ -656,15 +665,29 @@ void HelloWorld::update(float dt)
                 }
             }
         }
+		buzzer2->release();
     }
 
     // ========================================
     // 7. Jar 罐子碰撞检测
     // ========================================
-    for (auto jar : _jars)
+   // 使用迭代器遍历，安全删除无效的罐子指针
+    for (auto it = _jars.begin(); it != _jars.end(); )
     {
-        if (!jar || jar->isDestroyed()) continue;
+        auto jar = *it;
 
+        // 1. 检查指针有效性
+        if (!jar || jar->getReferenceCount() == 0)
+        {
+            it = _jars.erase(it); // 如果对象已失效，从列表中移除
+            continue;
+        }
+
+        if (!jar || jar->isDestroyed())
+        {
+            it++;
+            continue;
+        }
         // A. 玩家攻击罐子
         if (_player->isAttackPressed())
         {
@@ -703,6 +726,7 @@ void HelloWorld::update(float dt)
                 _player->setVelocityX(0);
             }
         }
+        it++;
     }
 }
 

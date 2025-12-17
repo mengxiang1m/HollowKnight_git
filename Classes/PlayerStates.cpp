@@ -457,7 +457,7 @@ void StateFocus::update(Player* player, float dt)
 
     // 时间配置
     const float TIME_CHARGE = 7 * 0.08f;
-    const float TIME_GET = 9 * 0.06f;
+    const float TIME_GET = 11 * 0.06f;
     const float TIME_END = 3 * 0.08f;
 
     // 中断检测
@@ -543,6 +543,38 @@ void StateDamaged::update(Player* player, float dt)
     if (_timer < _duration&&_timer>0.1f) {
         player->setVelocityY(0);
     }
+
+    // ============================================================
+    // 【新增】水平方向阻力 (Friction/Drag)
+    // ============================================================
+    // 获取当前速度
+    // (如果没有 getVelocityX()，请去 Player.h 加一个，或者用 getVelocity().x)
+    float vx = player->getVelocityX();
+
+    // 如果还有速度，就施加阻力
+    if (vx != 0)
+    {
+        // 阻力系数：数值越大，停得越快
+        // 击退初速度是 400，持续约 0.48秒。
+        // 设为 1200 意味着大概 0.3秒左右就会减速到 0，手感比较干脆
+        float friction = 1200.0f * dt;
+
+        if (vx > 0)
+        {
+            vx -= friction;
+            if (vx < 0) vx = 0; // 减过头了就归零，不要反向跑
+        }
+        else if (vx < 0)
+        {
+            vx += friction;
+            if (vx > 0) vx = 0;
+        }
+
+        // 应用减速后的速度
+        player->setVelocityX(vx);
+    }
+
+    // ============================================================
     // 【物理处理】
     // 在 StateDamaged 期间，我们不响应左右移动键。
     // 但是 Player::update() 里的 updateMovementX/Y 依然在运行。
@@ -600,7 +632,11 @@ void StateDead::enter(Player* player)
             }),
         nullptr
     );
-    player->runAction(restartSeq);
+    // 获取当前正在运行的场景来运行这个倒计时，而不是 Player
+    auto runningScene = Director::getInstance()->getRunningScene();
+    if (runningScene) {
+        runningScene->runAction(restartSeq);
+    }
 }
 
 void StateDead::update(Player* player, float dt)

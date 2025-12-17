@@ -53,7 +53,7 @@ void PlayerAnimator::loadAllAnimations()
     loadAnim("jump", Config::Path::PLAYER_JUMP, 6, 0.15f);
     loadAnim("fall", Config::Path::PLAYER_FALL, 6, 0.15f);
     loadAnim("slash", Config::Path::PLAYER_SLASH, 6, 0.04f);
-    loadAnim("damage", Config::Path::PLAYER_DAMAGE, 8, 0.06f);
+    loadAnim("damage", Config::Path::PLAYER_DAMAGED, 8, 0.06f);
     loadAnim("lookup", Config::Path::PLAYER_LOOKUP, 6, 0.1f);
     loadAnim("lookdown", Config::Path::PLAYER_LOOKDOWN, 6, 0.1f);
     loadAnim("slash_up", Config::Path::PLAYER_UPSLASH, 6, 0.04f);

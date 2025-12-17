@@ -9,6 +9,18 @@ USING_NS_CC;
 //  1. 生命周期 (Lifecycle)
 // =================================================================
 
+Player::~Player()
+{
+    // 1. 释放组件内存
+    CC_SAFE_DELETE(_stats);
+    CC_SAFE_DELETE(_animator);
+
+    this->stopAllActions();
+
+    // 2. 停止所有定时器
+    this->unscheduleAllCallbacks();
+}
+
 Player* Player::create(const std::string& filename)
 {
     // 注意：这里为了架构整洁，忽略了 filename 参数，直接在 init 里加载 Config 指定的资源
@@ -65,6 +77,11 @@ bool Player::init()
     _isInvincible = false;
     _isFacingRight = false;
     _isOnGround = false;
+    // 初始化安全位置
+    _lastSafePosition = this->getPosition();
+    if (_lastSafePosition.equals(Vec2::ZERO)) {
+        _lastSafePosition = Vec2(100, 500);
+    }
 
     // 输入标记
     _inputDirectionX = 0;
@@ -150,6 +167,12 @@ void Player::moveInDirection(int dir)
     }
 }
 
+float Player::getVelocityX()
+{
+    return _velocity.x;
+}
+
+
 void Player::setVelocityX(float x)
 {
     _velocity.x = x;
@@ -210,7 +233,6 @@ void Player::takeDamage(int damage, const cocos2d::Vec2& attackerPos, const std:
     CCLOG("Player took damage! Health: %d", _stats->getHealth());
 
     // 2. 【核心修复】计算正确的击退方向 (远离攻击者)
-    // 即使你背对敌人，这个算法也会把你推向远离敌人的方向
     float knockbackSpeed = 400.0f;
     float direction = (this->getPositionX() < attackerPos.x) ? -1.0f : 1.0f;
 
@@ -309,6 +331,29 @@ void Player::updateMovementY(float dt)
 
     float dy = _velocity.y * dt;
     this->setPositionY(this->getPositionY() + dy);
+
+    // ============================================================
+    // 防Bug检测：如果掉出地图，拉回
+    // ============================================================
+    if (this->getPositionY() < -300.0f)
+    {
+        CCLOG("[Player] BUG DETECTED: Fell out of map! Teleporting to safety.");
+
+        // 1. 瞬移回上一次的安全地板 (稍微抬高 50 像素，防止再次卡进地里)
+        // 如果 _lastSafePosition 还没初始化(0,0)，就用当前 X 坐标 + 高度兜底
+        if (_lastSafePosition.equals(Vec2::ZERO)) {
+            this->setPosition(this->getPositionX(), 1000.0f);
+        }
+        else {
+            this->setPosition(_lastSafePosition + Vec2(0, 50.0f));
+        }
+
+        // 2. 彻底锁死速度 (防止带着下坠速度再次掉下去)
+        _velocity = Vec2::ZERO;
+
+        // 3. 如果在跳跃状态，强制停止，防止逻辑混乱
+        _isJumpingAction = false;
+    }
 }
 
 void Player::updateCollisionX(const std::vector<cocos2d::Rect>& platforms)
@@ -362,6 +407,11 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
                         this->setPositionY(platform.getMaxY() - _bodyOffset.y - 1.0f);
                         _velocity.y = 0;
                         _isOnGround = true;
+
+                        // ==========================================
+                        // 记录安全坐标
+                        // ==========================================
+                        _lastSafePosition = this->getPosition();
                     }
                 }
                 else if (_velocity.y > 0)

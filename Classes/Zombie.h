@@ -80,7 +80,7 @@ private:
 
     // 检测范围
     float _detectionRange;      // 检测玩家的范围
-    float _maxChaseRange;       // 【来自 File 2】最大追逐范围
+    float _maxChaseRange;       
     cocos2d::Vec2 _spawnPosition; // 【来自 File 2】出生位置
 
     // 物理属性 (核心)

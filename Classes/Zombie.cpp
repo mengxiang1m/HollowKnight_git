@@ -36,7 +36,7 @@ bool Zombie::init()
 
     // 【来自 File 2】追逐范围限制 (全屏宽度)
     auto visibleSize = Director::getInstance()->getVisibleSize();
-    _maxChaseRange = visibleSize.width * 1.0f;
+    _maxChaseRange = visibleSize.width * 3.0f;
     _spawnPosition = Vec2::ZERO; // 稍后更新
 
     // 【来自 File 1】物理参数初始化
@@ -126,30 +126,45 @@ void Zombie::playDeathAnimation() {
     this->stopAllActions(); // 死亡停止一切
     auto seq = Sequence::create(
         Spawn::create(FadeOut::create(0.5f), RotateBy::create(0.5f, 180), nullptr),
-        CallFunc::create([this]() { this->removeFromParent(); }),
+        CallFunc::create([this]() {
+            this->removeFromParent();
+            CCLOG("Zombie Dead & Removed");
+            }),
         nullptr
     );
     this->runAction(seq);
 }
 
 // ========================================
-// 核心 Update (融合 AI 与 物理)
+// 核心 Update 
 // ========================================
 void Zombie::update(float dt, const cocos2d::Vec2& playerPos, const std::vector<cocos2d::Rect>& platforms)
 {
     if (_currentState == State::DEAD) return;
 
-    // 1. 初始化出生点 (用于追逐范围判断)
+    // 1. 初始化出生点
     if (_spawnPosition == Vec2::ZERO) _spawnPosition = this->getPosition();
 
-    // 2. 边界检查 (防掉出地图)
-    if (this->getPositionY() < -200.0f) {
-        this->removeFromParent();
+    // ============================================================
+    // 【修改：掉落保护】
+    // 如果掉出地图 (穿模了)，不要删除，而是“拉回”出生点
+    // ============================================================
+    if (this->getPositionY() < -300.0f) {
+        CCLOG("[Zombie] Fell off map! Teleporting back to spawn.");
+
+        // 1. 重置位置到出生点 (稍微抬高一点防止卡地)
+        this->setPosition(_spawnPosition + Vec2(0, 50));
+
+        // 2. 物理速度清零 (防止带着巨大的下落速度再次穿模)
+        _velocity = Vec2::ZERO;
+
+        // 3. 重置状态为巡逻
+        changeState(State::PATROL);
         return;
     }
 
     // ===================================
-    // 3. 物理系统：Y轴 (重力与地面)
+    // 2. 物理系统：Y轴 (重力与地面)
     // ===================================
     updateMovementY(dt);
     updateCollisionY(platforms);
@@ -162,7 +177,7 @@ void Zombie::update(float dt, const cocos2d::Vec2& playerPos, const std::vector<
     }
 
     // ===================================
-    // 4. AI 决策系统
+    // 3. AI 决策系统
     // ===================================
     switch (_currentState)
     {
@@ -198,7 +213,7 @@ void Zombie::update(float dt, const cocos2d::Vec2& playerPos, const std::vector<
     }
 
     // ===================================
-    // 5. 物理系统：X轴 (移动与墙壁)
+    // 4. 物理系统：X轴 (移动与墙壁)
     // ===================================
     // 只有非静止状态才需要更新X物理
     if (_velocity.x != 0) {
