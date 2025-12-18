@@ -1,7 +1,9 @@
 #include "PlayerAnimator.h"
+#include "SimpleAudioEngine.h"
 #include "Config.h" // 需要读取路径配置
 
 USING_NS_CC;
+using namespace CocosDenshion;
 
 PlayerAnimator::PlayerAnimator() : _owner(nullptr), _slashEffectSprite(nullptr), _focusEffectSprite(nullptr)
 {
@@ -17,6 +19,7 @@ void PlayerAnimator::init(Sprite* owner)
 
     // 1. 加载所有动画资源
     loadAllAnimations();
+
 
     // 2. 初始化刀光特效
     _slashEffectSprite = Sprite::create();
@@ -47,7 +50,6 @@ void PlayerAnimator::loadAnim(const std::string& name, const std::string& format
 
 void PlayerAnimator::loadAllAnimations()
 {
-    // === 搬运原来的加载逻辑 ===
     loadAnim("idle", Config::Path::PLAYER_IDLE, 9, 0.15f);
     loadAnim("run", Config::Path::PLAYER_RUN, 13, 0.15f);
     loadAnim("jump", Config::Path::PLAYER_JUMP, 6, 0.15f);
@@ -75,6 +77,35 @@ void PlayerAnimator::loadAllAnimations()
     loadAnim("effect_focus_end", Config::Path::EFFECT_FOCUS_END, 2, 0.08f);
 }
 
+void PlayerAnimator::preloadSounds()
+{
+    auto audio = SimpleAudioEngine::getInstance();
+
+    // 1. 背景音乐
+    audio->preloadBackgroundMusic(Config::Audio::BGM_DIRTMOUTH);
+
+    // 2. 动作音效
+    audio->preloadEffect(Config::Audio::HERO_JUMP);
+    audio->preloadEffect(Config::Audio::HERO_LAND_SOFT);
+    audio->preloadEffect(Config::Audio::HERO_LAND_HARD);
+    audio->preloadEffect(Config::Audio::HERO_RUN);
+    audio->preloadEffect(Config::Audio::HERO_UNSHEATH);
+
+    // 3. 战斗音效
+    audio->preloadEffect(Config::Audio::HERO_DAMAGE);
+    audio->preloadEffect(Config::Audio::HERO_DEATH);
+
+    // 4. 攻击音效
+    audio->preloadEffect(Config::Audio::SWORD_1);
+    audio->preloadEffect(Config::Audio::SWORD_2);
+    audio->preloadEffect(Config::Audio::SWORD_3);
+
+    // 5. 技能音效
+    audio->preloadEffect(Config::Audio::FOCUS_CHARGE);
+    audio->preloadEffect(Config::Audio::FOCUS_HEAL);
+
+    CCLOG("[PlayerAnimator] Audio Assets Preloaded Successfully from Config!");
+}
 void PlayerAnimator::playAnimation(const std::string& animName)
 {
     if (!_owner) return;

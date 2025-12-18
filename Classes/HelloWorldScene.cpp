@@ -7,6 +7,8 @@
 #include "HUDLayer.h"
 #include "Jar.h"
 #include "Fireball.h" 
+#include "PlayerAnimator.h"
+#include "config.h"
 
 USING_NS_CC;
 
@@ -55,6 +57,14 @@ bool HelloWorld::init()
     {
         return false;
     }
+
+    PlayerAnimator::preloadSounds();
+
+    // 播放背景音乐 (使用 Config)
+    auto audio = CocosDenshion::SimpleAudioEngine::getInstance();
+    audio->playBackgroundMusic(Config::Audio::BGM_DIRTMOUTH, true);
+    audio->setBackgroundMusicVolume(0.5f);
+    audio->setEffectsVolume(0.8f);
 
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();

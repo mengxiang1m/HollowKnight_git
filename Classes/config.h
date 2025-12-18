@@ -88,6 +88,33 @@ namespace Config {
         static const char* EFFECT_FOCUS_END = "knight/focusEnd/focusEffectEnd/focusEffectEnd_%d.png";
     }
 
+    // ÒôÆµÂ·¾¶ÅäÖÃ 
+    namespace Audio {
+        // ±³¾°ÒôÀÖ
+        static const char* BGM_DIRTMOUTH = "audio/Dirtmouth 1.mp3"; 
+
+        // Ö÷½Ç¶¯×÷
+        static const char* HERO_JUMP = "audio/hero_jump.mp3";
+        static const char* HERO_LAND_SOFT = "audio/hero_land_soft.mp3";
+        static const char* HERO_LAND_HARD = "audio/hero_land_hard.mp3";
+        static const char* HERO_RUN = "audio/hero_run_footsteps_stone.mp3";
+ 
+
+        // Õ½¶·
+        static const char* HERO_DAMAGE = "audio/hero_damage.mp3";
+        static const char* HERO_DEATH = "audio/hero_death_v2.mp3";
+        static const char* HERO_UNSHEATH = "audio/hero_unsheath.mp3";
+
+        // ¹¥»÷ (Ëæ»ú³Ø)
+        static const char* SWORD_1 = "audio/sword_1.mp3";
+        static const char* SWORD_2 = "audio/sword_2.mp3";
+        static const char* SWORD_3 = "audio/sword_3.mp3";
+
+        // ¼¼ÄÜ (Äý¾Û)
+        static const char* FOCUS_CHARGE = "audio/focus_health_charging.mp3";
+        static const char* FOCUS_HEAL = "audio/focus_health_heal.mp3";
+    }
+
     namespace Render {
         const int Z_ORDER_PLAYER = 10;
         const int Z_ORDER_ENEMY = 5;
