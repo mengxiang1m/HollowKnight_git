@@ -2,6 +2,7 @@
 #define __BUZZER_H__
 
 #include "cocos2d.h"
+#include <functional>
 
 class Buzzer : public cocos2d::Sprite
 {
@@ -36,6 +37,12 @@ public:
     // 析构函数
     ~Buzzer();
 
+    // ==========================================
+    // 【新增】回魂机制接口
+    // ==========================================
+    typedef std::function<void()> DeathCallback;
+    void setOnDeathCallback(DeathCallback callback) { _onDeathCallback = callback; }
+
 private:
     // 状态相关
     State _currentState;
@@ -63,6 +70,9 @@ private:
     // 辅助方法
     bool isPlayerInRange(const cocos2d::Vec2& playerPos);
     void chasePlayer(const cocos2d::Vec2& playerPos, float dt);
+
+    // 【新增】保存回调函数
+    DeathCallback _onDeathCallback = nullptr;
 };
 
 #endif // __BUZZER_H__

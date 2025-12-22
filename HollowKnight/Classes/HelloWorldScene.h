@@ -27,67 +27,71 @@
 
 #include "cocos2d.h"
 #include "Player.h"
-#include "Spike.h"
 
 class HelloWorld : public cocos2d::Scene
 {
 public:
     static cocos2d::Scene* createScene();
 
-    // 游戏容器层（所有游戏对象的动态）
+    // 游戏容器层 (所有移动的东西)
     cocos2d::Layer* _gameLayer;
 
     virtual bool init();
 
     virtual void update(float dt) override;
 
-    // 处理默认的关闭按钮回调，退出游戏
+    // 这是默认的关闭按钮回调，用于退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
-    // 和一系列宏和 cocos 引擎相关    
+    // 这一行宏是 cocos 必须的    
     CREATE_FUNC(HelloWorld);
 
 private: 
     Player* _player; 
 
-    //地图切片中的地面碰撞框
+    //存地图里所有的地面矩形框
     std::vector<cocos2d::Rect> _groundRects;
-
-    // 【新增】罐子列表
-    std::vector<class Jar*> _jars;
 
     // 解析地图碰撞框的辅助函数
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
-    //输入状态标志位
+    // 罐子列表
+    std::vector<class Jar*> _jars;
+    
+    // 【新增】Boss 指针
+    class Boss* _boss;
+    bool _bossTriggered;  // Boss 是否已经触发
+
+    //键盘状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;
 	bool _isUpPressed = false;
 	bool _isDownPressed = false;
 
-    // 根据输入更新玩家移动速度
+    // 辅助函数：根据当前按键状态更新主角速度
     void updatePlayerMovement();
 
-    // 【新增】坐标显示标签
+    // 坐标显示标签
     cocos2d::Label* _coordLabel;
-    
-    // 【新增】调试用DrawNode
+
+    // 调试用DrawNode
     cocos2d::DrawNode* _debugDrawNode;
-    
-    // 【新增】Spike调试信息标签
+
+    // Spike调试信息标签
     cocos2d::Label* _spikeDebugLabel;
 
     // ========================================
-    // 【新增】场景切换相关成员变量
+    // 场景切换相关成员变量
     // ========================================
     int _currentLevel = 1;           // 当前关卡编号
     bool _isTransitioning = false;   // 是否正在场景切换
 
     // ========================================
-    // 【新增】场景切换方法
+    // 场景切换方法
     // ========================================
     void loadMap(const std::string& mapPath);  // 加载地图
-    void switchToLevel2();                      // 切换到level2
+    void switchToLevel2();
+    void switchToLevel3();
 };
 
 #endif // __HELLOWORLD_SCENE_H__

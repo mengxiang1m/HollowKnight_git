@@ -296,7 +296,18 @@ void Buzzer::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
     _isInvincible = true;
     _health -= damage;
     CCLOG("?? Buzzer took %d damage! Health: %d/%d", damage, _health, _maxHealth);
+    {
+        changeState(State::DEAD);
 
+        // ==========================================
+        // 【新增】触发死亡回调 (加魂)
+        // ==========================================
+        if (_onDeathCallback)
+        {
+            _onDeathCallback();
+            CCLOG("Buzzer died -> Trigger callback (Gain Soul)");
+        }
+    }
     // 【新增】受击击退效果
     Vec2 buzzerPos = this->getPosition();
     float directionX = buzzerPos.x - attackerPos.x;

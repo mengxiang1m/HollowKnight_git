@@ -121,6 +121,16 @@ void Jar::takeDamage()
             RemoveSelf::create(),
             nullptr
         ));
+
+        // 在罐子精灵真正被移除后将指针置空，避免悬挂指针导致后续访问崩溃
+        // 使用延迟调用在父节点上清理指针（避免在被移除的精灵上运行回调）
+        this->runAction(Sequence::create(
+            DelayTime::create(0.21f),
+            CallFunc::create([this]() {
+                this->_jarSprite = nullptr;
+            }),
+            nullptr
+        ));
     }
     
     // 播放幼虫释放动画
@@ -189,11 +199,16 @@ void Jar::playGrubFreeAnimation()
     
     if (frames.size() > 0)
     {
-        auto animation = Animation::createWithSpriteFrames(frames, 0.1f); // 每帧0.1秒
+        float frameDuration = 0.1f;
+        float freeAnimDuration = frames.size() * frameDuration;
+        float fadeDuration = 0.3f;
+        float totalGrubRemovalDelay = freeAnimDuration + fadeDuration;
+
+        auto animation = Animation::createWithSpriteFrames(frames, frameDuration); // 每帧0.1秒
         auto animate = Animate::create(animation);
         
         // 播放完后淡出并移除
-        auto fadeOut = FadeOut::create(0.3f);
+        auto fadeOut = FadeOut::create(fadeDuration);
         auto remove = RemoveSelf::create();
         
         _grubSprite->runAction(Sequence::create(
@@ -204,6 +219,15 @@ void Jar::playGrubFreeAnimation()
         ));
         
         CCLOG("Grub free animation started (once)");
+        
+        // 在幼虫精灵真正被移除后将指针置空，避免悬挂指针
+        this->runAction(Sequence::create(
+            DelayTime::create(totalGrubRemovalDelay + 0.05f),
+            CallFunc::create([this]() {
+                this->_grubSprite = nullptr;
+            }),
+            nullptr
+        ));
         
         // 延迟后移除整个节点
         this->runAction(Sequence::create(

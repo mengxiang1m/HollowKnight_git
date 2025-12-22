@@ -1,4 +1,4 @@
-#include "HelloWorldScene.h"
+ï»¿#include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
 #include "Enemy.h"
 #include "Zombie.h"
@@ -6,7 +6,11 @@
 #include "Buzzer.h"
 #include "HUDLayer.h"
 #include "Jar.h"
-#include "Fireball.h"  // ¡¾ĞÂÔö¡¿
+#include "Fireball.h"
+#include "KeyBindingScene.h"  // ã€æ–°å¢ã€‘é”®ä½ç®¡ç†å™¨
+#include "Boss.h"  // ã€æ–°å¢ã€‘Boss ç±»
+#include "FKFireball.h" // ã€æ–°å¢**
+#include "FKShockwave.h"
 
 USING_NS_CC;
 
@@ -15,12 +19,11 @@ Scene* HelloWorld::createScene()
     return HelloWorld::create();
 }
 
-
 void HelloWorld::parseMapCollisions(TMXTiledMap* map)
 {
-    _groundRects.clear(); // ÏÈÇå¿Õ
+    _groundRects.clear(); // å…ˆæ¸…ç©º
 
-    // 1. »ñÈ¡¶ÔÏó²ã
+    // 1. è·å–å¯¹è±¡å±‚
     auto objectGroup = map->getObjectGroup("collision");
 
     if (objectGroup == nullptr) {
@@ -28,25 +31,25 @@ void HelloWorld::parseMapCollisions(TMXTiledMap* map)
         return;
     }
 
-    // 2. »ñÈ¡²ãÀïËùÓĞµÄ¶ÔÏó
+    // 2. è·å–å±‚é‡Œæ‰€æœ‰çš„å¯¹è±¡
     auto& objects = objectGroup->getObjects();
 
     for (auto& obj : objects)
     {
-        // obj ÊÇÒ»¸ö ValueMap (¼üÖµ¶Ô×Öµä)
+        // obj æ˜¯ä¸€ä¸ª ValueMap (é”®å€¼å¯¹å­—å…¸)
         cocos2d::ValueMap& dict = obj.asValueMap();
 
-        // 3. ¶ÁÈ¡×ø±êºÍ¿í¸ß
+        // 3. è¯»å–åæ ‡å’Œå®½é«˜
         float x = dict["x"].asFloat();
         float y = dict["y"].asFloat();
         float w = dict["width"].asFloat();
         float h = dict["height"].asFloat();
 
-        // 4. ´´½¨ Rect ²¢´æÆğÀ´
+        // 4. åˆ›å»º Rect å¹¶å­˜èµ·æ¥
         Rect rect = Rect(x, y, w, h);
         _groundRects.push_back(rect);
 
-        CCLOG("Parsed Ground Rect: x=%f, y=%f, w=%f, h=%f", x, y, w, h);
+        // CCLOG("Parsed Ground Rect: x=%f, y=%f, w=%f, h=%f", x, y, w, h);
     }
 }
 
@@ -61,33 +64,37 @@ bool HelloWorld::init()
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
     // ============================================================
-    // 1. ¡¾ºËĞÄĞŞ¸Ä¡¿´´½¨ÓÎÏ·ÈİÆ÷²ã
+    // 1. åˆ›å»ºæ¸¸æˆå®¹å™¨å±‚
     // ============================================================
     _gameLayer = Layer::create();
 
-    // °ÑËõ·ÅÓ¦ÓÃÔÚ GameLayer ÉÏ£¬¶ø²»ÊÇÕû¸ö Scene
-    // ÕâÑù UI ¾Í²»»á±»·Å´ó£¬±£³Ö¸ßÇå£¡
+    // æŠŠç¼©æ”¾åº”ç”¨åœ¨ GameLayer ä¸Šï¼Œè€Œä¸æ˜¯æ•´ä¸ª Scene
+    // è¿™æ · UI å°±ä¸ä¼šè¢«æ”¾å¤§ï¼Œä¿æŒé«˜æ¸…ï¼
     float zoomScale = 1.5f;
     _gameLayer->setScale(zoomScale);
 
-    // ÓÎÏ·²ã ZĞòµÍ (1)£¬·ÅÔÚÏÂÃæ
+    // æ¸¸æˆå±‚ Zåºä½ (1)ï¼Œæ”¾åœ¨ä¸‹é¢
     this->addChild(_gameLayer, 1);
 
     //////////////////////////////////////////////////////////////////////
-    // 2. ±³¾°
+    // 2. èƒŒæ™¯
     //////////////////////////////////////////////////////////////////////
-    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // ÉÔÎ¢µ÷°µÒ»µã£¬¸üÓĞ·ÕÎ§
+    auto bgLayer = LayerColor::create(Color4B(40, 40, 40, 255)); // ç¨å¾®è°ƒæš—ä¸€ç‚¹ï¼Œæ›´æœ‰æ°›å›´
     _gameLayer->addChild(bgLayer, -100);
 
     //////////////////////////////////////////////////////////////////////
-    // 3. ¡¾ÖØ¹¹¡¿Ê¹ÓÃloadMap·½·¨¼ÓÔØlevel1
+    // 3. ã€æµ‹è¯•é…ç½®ã€‘ç›´æ¥åŠ è½½ Level 2 å¹¶å°†ä¸»è§’æ”¾åœ¨æœ€å³ç«¯
     //////////////////////////////////////////////////////////////////////
-    loadMap("maps/level1.tmx");
+    _currentLevel = 2;  // è®¾ç½®ä¸º Level 2
+    loadMap("maps/level2.tmx");  // åŠ è½½ Level 2 åœ°å›¾
 
     //////////////////////////////////////////////////////////////////////
-    // 4. ¡¾ÖØ¹¹¡¿Ö»ÔÚlevel1´´½¨µĞÈË
+    // 4. åœ¨ init ä¸­åˆ›å»º Level 1 ç‰¹æœ‰çš„æ•Œäºº
+    // ã€æ³¨æ„ã€‘ç°åœ¨ä» Level 2 å¼€å§‹æµ‹è¯•ï¼Œæ‰€ä»¥ä¸éœ€è¦åˆ›å»º Level 1 çš„æ•Œäºº
     //////////////////////////////////////////////////////////////////////
-    // ´´½¨ Enemy
+
+    /*
+    // --- åˆ›å»º Enemy ---
     auto enemy = Enemy::create("enemies/enemy_walk_1.png");
     if (enemy)
     {
@@ -95,10 +102,20 @@ bool HelloWorld::init()
         enemy->setPatrolRange(500, 800);
         enemy->setTag(999);
         _gameLayer->addChild(enemy, 5);
+
+        // æ­»äº¡å›è°ƒ (å›é­‚ + éŸ³æ•ˆ)
+        enemy->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill();
+                CCLOG("Soul gained from Enemy!");
+            }
+            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+            });
+
         CCLOG("Enemy spawned!");
     }
 
-    // ´´½¨ Zombie µĞÈË
+    // --- åˆ›å»º Zombie æ•Œäºº ---
     auto zombie = Zombie::create("zombie/walk/walk_1.png");
     if (zombie)
     {
@@ -106,37 +123,32 @@ bool HelloWorld::init()
         zombie->setPatrolRange(1000, 1400);
         zombie->setTag(998);
         _gameLayer->addChild(zombie, 5);
+
+        // æ­»äº¡å›è°ƒ
+        zombie->setOnDeathCallback([=]() {
+            if (_player) {
+                // å…¼å®¹ä¸åŒå†™æ³•ï¼Œè¿™é‡Œå‡è®¾ Player æœ‰ gainSoulOnKill
+                _player->gainSoulOnKill();
+                CCLOG("Soul gained from Zombie!");
+            }
+            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
+            });
+
         CCLOG("Zombie spawned at position (1200, 430)!");
     }
 
-    // ´´½¨ Spike ÏİÚå
+    // --- åˆ›å»º Spike é™·é˜± ---
     auto textureCache = Director::getInstance()->getTextureCache();
     auto spikeTexture = textureCache->addImage("traps/spike.png");
-    
     Spike* spike = nullptr;
-    
-    if (spikeTexture)
-    {
-        CCLOG("========== TEXTURE PRE-LOAD ==========");
-        CCLOG("Texture loaded successfully!");
-        CCLOG("Texture size: %.0fx%.0f", 
-              spikeTexture->getContentSize().width,
-              spikeTexture->getContentSize().height);
-        CCLOG("Texture pixel format: %d", (int)spikeTexture->getPixelFormat());
-        CCLOG("=====================================");
-        
+
+    if (spikeTexture) {
         spike = Spike::create("traps/spike.png");
     }
-    else
-    {
-        CCLOG("========== TEXTURE LOAD FAILED ==========");
-        CCLOG("Failed to load texture: traps/spike.png");
-        CCLOG("Trying alternative: Using enemy texture as fallback");
-        CCLOG("=========================================");
-        
-        spike = Spike::create("enemies/enemy_walk_1.png");
+    else {
+        spike = Spike::create("enemies/enemy_walk_1.png"); // Fallback
     }
-    
+
     if (spike)
     {
         Vec2 spikePos = Vec2(3590.0f, 1000.0f);
@@ -145,19 +157,12 @@ bool HelloWorld::init()
         spike->setAnchorPoint(Vec2(0.5f, 0.5f));
         spike->setVisible(true);
         spike->setOpacity(255);
-        spike->setScale(1.0f); 
-        spike->setColor(Color3B::WHITE);
+        spike->setScale(1.0f);
         spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
-        
         _gameLayer->addChild(spike, 5);
-        
-        CCLOG("========== SPIKE DEBUG INFO ==========");
-        CCLOG("Spike created successfully!");
-        CCLOG("Spike position set to: (%.2f, %.2f)", spikePos.x, spikePos.y);
-        CCLOG("=====================================");
     }
 
-    // ´´½¨ Buzzer ·ÉĞĞµĞÈË
+    // --- åˆ›å»º Buzzer é£è¡Œæ•Œäºº ---
     auto buzzer1 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer1)
     {
@@ -165,9 +170,15 @@ bool HelloWorld::init()
         buzzer1->setInitialPosition(buzzer1Pos);
         buzzer1->setTag(996);
         _gameLayer->addChild(buzzer1, 5);
-        CCLOG("Buzzer 1 spawned at position (4000, 900)!");
+
+        buzzer1->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill(); // è°ƒç”¨ä¸»è§’åŠ é­‚
+                CCLOG("Soul gained from Buzzer 1!");
+            }
+            });
     }
-    
+
     auto buzzer2 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer2)
     {
@@ -175,19 +186,37 @@ bool HelloWorld::init()
         buzzer2->setInitialPosition(buzzer2Pos);
         buzzer2->setTag(995);
         _gameLayer->addChild(buzzer2, 5);
-        CCLOG("Buzzer 2 spawned at position (6000, 700)!");
+
+        buzzer2->setOnDeathCallback([=]() {
+            if (_player) {
+                _player->gainSoulOnKill(); // è°ƒç”¨ä¸»è§’åŠ é­‚
+                CCLOG("Soul gained from Buzzer 2!");
+            }
+            });
     }
+    */
 
     //////////////////////////////////////////////////////////////////////
-    // 5. ´´½¨Ö÷½Ç (Player)
+    // 5. åˆ›å»ºä¸»è§’ (Player)
     //////////////////////////////////////////////////////////////////////
     _player = Player::create("Knight/idle/idle_1.png");
+    
+    // ã€æ–°å¢ã€‘åˆå§‹åŒ– Boss å˜é‡
+    _boss = nullptr;
+    _bossTriggered = false;
 
     if (_player)
     {
-        _player->setPosition(Vec2(6400, 1300));  // ¡¾ĞŞ¸Ä¡¿Íæ¼Ò³õÊ¼Î»ÖÃ½Ó½ü level1 ÖÕµã£¬·½±ã²âÊÔ
+        // ã€æµ‹è¯•é…ç½®ã€‘å°†ä¸»è§’æ”¾åœ¨ Level 2 æœ€å³ä¾§ï¼Œæ–¹ä¾¿æµ‹è¯• Level 3 åˆ‡æ¢
+        // Level 2 -> Level 3 åˆ‡æ¢è§¦å‘ç‚¹: X >= 6325
+        // ä¸»è§’åˆå§‹ä½ç½®: X = 6200 (è·ç¦»åˆ‡æ¢ç‚¹ 125 åƒç´ )
+        _player->setPosition(Vec2(6200, 1300));
         _gameLayer->addChild(_player, 10);
-        CCLOG("Player created successfully!");
+        CCLOG("========== TEST MODE ==========");
+        CCLOG("Player spawned at Level 2 end: (6200, 1300)");
+        CCLOG("Level 3 trigger point: X >= 6325");
+        CCLOG("Distance to trigger: 125 pixels");
+        CCLOG("==============================");
     }
     else
     {
@@ -195,109 +224,121 @@ bool HelloWorld::init()
     }
 
     //////////////////////////////////////////////////////////////////////
-    // 6. ´´½¨ UI ²ã
+    // 6. åˆ›å»º UI å±‚
     //////////////////////////////////////////////////////////////////////
     auto hudLayer = HUDLayer::createLayer();
     hudLayer->setTag(900);
     this->addChild(hudLayer, 100);
 
-    // Á¬½Ó Player ºÍ HUD
-    _player->setOnHealthChanged([=](int hp, int maxHp) {
-        hudLayer->updateHealth(hp, maxHp);
-    });
+    if (_player) {
+        // è¡€é‡ç›‘å¬
+        _player->setOnHealthChanged([=](int hp, int maxHp) {
+            hudLayer->updateHealth(hp, maxHp);
+            });
 
-    hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth());
+        // é­‚é‡ç›‘å¬ 
+        _player->setOnSoulChanged([=](int soul) {
+            hudLayer->updateSoul(soul);
+            });
+
+        // åˆå§‹åŒ– UI
+        hudLayer->updateHealth(_player->getHealth(), _player->getMaxHealth());
+    }
 
     //////////////////////////////////////////////////////////////////////
-    // 7. ¼üÅÌ¼àÌıÆ÷
+    // 7. é”®ç›˜ç›‘å¬å™¨ ã€ä¿®æ”¹ã€‘ä½¿ç”¨ KeyBindingManager
     //////////////////////////////////////////////////////////////////////
     auto listener = EventListenerKeyboard::create();
+    // ã€é‡è¦ã€‘ä¸è¦åœ¨è¿™é‡Œæ•è· kbmï¼Œè€Œæ˜¯åœ¨æ¯æ¬¡å›è°ƒä¸­åŠ¨æ€è·å–
 
-    // --- °´ÏÂ°´¼ü ---
+    // --- æŒ‰ä¸‹æŒ‰é”® ---
     listener->onKeyPressed = [=](EventKeyboard::KeyCode code, Event* event) {
         if (_player == nullptr) return;
 
-        switch (code)
+        // ã€ä¿®å¤ã€‘æ¯æ¬¡éƒ½é‡æ–°è·å– KeyBindingManager å®ä¾‹ï¼Œç¡®ä¿ä½¿ç”¨æœ€æ–°çš„é”®ä½é…ç½®
+        auto kbm = KeyBindingManager::getInstance();
+
+        // ä½¿ç”¨é”®ä½ç®¡ç†å™¨æ£€æŸ¥æŒ‰é”®
+        if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_RIGHT))
         {
-        case EventKeyboard::KeyCode::KEY_D:
-        case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             _isRightPressed = true;
             updatePlayerMovement();
-            break;
-
-        case EventKeyboard::KeyCode::KEY_A:
-        case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_LEFT))
+        {
             _isLeftPressed = true;
             updatePlayerMovement();
-            break;
-
-        case EventKeyboard::KeyCode::KEY_W:
-        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_UP))
+        {
             _isUpPressed = true;
             updatePlayerMovement();
-            break;
-
-        case EventKeyboard::KeyCode::KEY_S:
-        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_DOWN))
+        {
             _isDownPressed = true;
             updatePlayerMovement();
-            break;
-
-        case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE:
-            _player->setJumpPressed(true);
-            break;
-
-        case EventKeyboard::KeyCode::KEY_J:
-        case EventKeyboard::KeyCode::KEY_X:
-            _player->setAttackPressed(true);
-            break;
         }
-    };
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::JUMP))
+        {
+            _player->setJumpPressed(true);
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::ATTACK))
+        {
+            _player->setAttackPressed(true);
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::FOCUS))
+        {
+            _player->setFocusInput(true);
+        }
+        };
 
-    // --- ËÉ¿ª°´¼ü ---
+    // --- æ¾å¼€æŒ‰é”® ---
     listener->onKeyReleased = [=](EventKeyboard::KeyCode code, Event* event) {
         if (_player == nullptr) return;
 
-        switch (code)
+        // ã€ä¿®å¤ã€‘æ¯æ¬¡éƒ½é‡æ–°è·å– KeyBindingManager å®ä¾‹
+        auto kbm = KeyBindingManager::getInstance();
+
+        // ä½¿ç”¨é”®ä½ç®¡ç†å™¨æ£€æŸ¥æŒ‰é”®
+        if (code == kbm->getKeyForAction(KeyBindingManager::Action::FOCUS))
         {
-        case EventKeyboard::KeyCode::KEY_A:
-        case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+            _player->setFocusInput(false);
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_LEFT))
+        {
             _isLeftPressed = false;
             updatePlayerMovement();
-            break;
-        case EventKeyboard::KeyCode::KEY_D:
-        case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_RIGHT))
+        {
             _isRightPressed = false;
             updatePlayerMovement();
-            break;
-        case EventKeyboard::KeyCode::KEY_W:
-        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_UP))
+        {
             _isUpPressed = false;
             updatePlayerMovement();
-            break;
-        case EventKeyboard::KeyCode::KEY_S:
-        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::MOVE_DOWN))
+        {
             _isDownPressed = false;
             updatePlayerMovement();
-            break;
-
-        case EventKeyboard::KeyCode::KEY_Z:
-        case EventKeyboard::KeyCode::KEY_SPACE:
-            _player->setJumpPressed(false);
-            break;
-
-        case EventKeyboard::KeyCode::KEY_J:
-        case EventKeyboard::KeyCode::KEY_X:
-            _player->setAttackPressed(false);
-            break;
         }
-    };
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::JUMP))
+        {
+            _player->setJumpPressed(false);
+        }
+        else if (code == kbm->getKeyForAction(KeyBindingManager::Action::ATTACK))
+        {
+            _player->setAttackPressed(false);
+        }
+        };
 
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
     //////////////////////////////////////////////////////////////////////
-    // 8. ÍË³ö°´Å¥
+    // 8. é€€å‡ºæŒ‰é’®
     //////////////////////////////////////////////////////////////////////
     auto closeItem = MenuItemImage::create(
         "CloseNormal.png",
@@ -316,7 +357,7 @@ bool HelloWorld::init()
     this->addChild(menu, 100);
 
     //////////////////////////////////////////////////////////////////////
-    // 9. ´´½¨×ø±êÏÔÊ¾±êÇ©
+    // 9. è°ƒè¯• UI
     //////////////////////////////////////////////////////////////////////
     _coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
     _coordLabel->setColor(Color3B::YELLOW);
@@ -324,22 +365,15 @@ bool HelloWorld::init()
     _coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
     this->addChild(_coordLabel, 200);
 
-    //////////////////////////////////////////////////////////////////////
-    // 10. ´´½¨Spikeµ÷ÊÔĞÅÏ¢±êÇ©
-    //////////////////////////////////////////////////////////////////////
     _spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
     _spikeDebugLabel->setColor(Color3B::RED);
     _spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
     _spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
     this->addChild(_spikeDebugLabel, 200);
 
-    //////////////////////////////////////////////////////////////////////
-    // 11. ´´½¨µ÷ÊÔDrawNode
-    //////////////////////////////////////////////////////////////////////
     _debugDrawNode = DrawNode::create();
     this->addChild(_debugDrawNode, 150);
 
-    // ¿ªÆô Update£¬ÓÃÓÚÏà»ú¸úËæ
     this->scheduleUpdate();
 
     return true;
@@ -349,24 +383,19 @@ void HelloWorld::updatePlayerMovement()
 {
     if (!_player) return;
 
-    // 1. ¼ÆËãÊäÈë·½Ïò
-    // ×ó¼ü(-1) + ÓÒ¼ü(+1)
-    // Èç¹ûÍ¬Ê±°´×¡£¬½á¹ûÎª 0 (Í£)£»Ö»°´×óÊÇ -1£»Ö»°´ÓÒÊÇ 1
-    int dirX = 0,dirY=0;
+    // å·¦é”®(-1) + å³é”®(+1)
+    int dirX = 0, dirY = 0;
     if (_isLeftPressed)  dirX -= 1;
     if (_isRightPressed) dirX += 1;
 
-    if (_isUpPressed) dirY+= 1;
+    if (_isUpPressed) dirY += 1;
     if (_isDownPressed) dirY -= 1;
- 
-    // 2. ½«¡°ÒâÍ¼¡±´«¸ø Player
-    // Player ÄÚ²¿µÄ×´Ì¬»ú (StateRun/StateIdle) »á×Ô¶¯¶ÁÈ¡Õâ¸öÖµ
-    // Èç¹ûÊÇ 0£¬×´Ì¬»ú×Ô¶¯ÇĞ»Ø Idle£»Èç¹ûÊÇ -1/1£¬×´Ì¬»ú×Ô¶¯ÇĞÎª Run ²¢ÒÆ¶¯
+
     _player->setInputDirectionX(dirX);
     _player->setInputDirectionY(dirY);
 }
 
-// Ã¿Ö¡¸üĞÂ£ºÊµÏÖÏà»ú¸úËæ
+// æ¯å¸§æ›´æ–°ï¼šå®ç°ç›¸æœºè·Ÿéšã€ç¢°æ’æ£€æµ‹ã€å…³å¡åˆ‡æ¢
 void HelloWorld::update(float dt)
 {
     if (!_player || !_gameLayer) return;
@@ -375,8 +404,9 @@ void HelloWorld::update(float dt)
     if (!map) return;
 
     // ========================================
-    // 0. ¡¾ĞÂÔö¡¿¼ì²âÍæ¼ÒÎ»ÖÃ£¬´¥·¢³¡¾°ÇĞ»»
+    // 0. æ£€æµ‹ç©å®¶ä½ç½®ï¼Œè§¦å‘åœºæ™¯åˆ‡æ¢
     // ========================================
+    // Level 1 -> Level 2
     if (_currentLevel == 1 && !_isTransitioning)
     {
         Vec2 playerPos = _player->getPosition();
@@ -384,37 +414,51 @@ void HelloWorld::update(float dt)
         {
             CCLOG("Player reached level1 end! Triggering level switch...");
             switchToLevel2();
-            return;  // Á¢¼´·µ»Ø£¬±ÜÃâÔÚÇĞ»»¹ı³ÌÖĞ¼ÌĞø¸üĞÂ
+            return;
+        }
+    }
+
+    // Level 2 -> Level 3
+    if (_currentLevel == 2 && !_isTransitioning)
+    {
+        Vec2 playerPos = _player->getPosition();
+        if (playerPos.x >= 6325.0f)
+        {
+            CCLOG("Player reached level2 end! Triggering level 3 switch...");
+            switchToLevel3();
+            return;
         }
     }
 
     // ========================================
-    // 1. Ê×ÏÈ¸üĞÂÍæ¼ÒÎ»ÖÃ
+    // 1. æ›´æ–°ç©å®¶ä½ç½® (åŒ…å« Jar å¹³å°é€»è¾‘)
     // ========================================
-    // ¡¾ĞÂÔö¡¿¶¯Ì¬Ìí¼Ó¹Ş×Ó¶¥²¿Æ½Ì¨µ½µØÃæÅö×²¼ì²â
-    std::vector<Rect> dynamicGroundRects = _groundRects;  // ¸´ÖÆÔ­Ê¼µØÃæÅö×²
-    
-    // ½«ËùÓĞÎ´±»´İ»ÙµÄ¹Ş×Ó¶¥²¿Æ½Ì¨Ìí¼Óµ½Åö×²¼ì²âÖĞ
-    for (auto jar : _jars)
+    std::vector<Rect> dynamicGroundRects = _groundRects;  // å¤åˆ¶åŸå§‹åœ°é¢ç¢°æ’
+
+    // ã€ä¿®å¤ã€‘æ·»åŠ å®‰å…¨æ£€æŸ¥ï¼šåªåœ¨ Level 2 æ—¶å¤„ç†ç½å­
+    if (_currentLevel == 2 && !_jars.empty())
     {
-        if (jar && !jar->isDestroyed())
+        // å°†æ‰€æœ‰æœªè¢«æ‘§æ¯çš„ç½å­é¡¶éƒ¨å¹³å°æ·»åŠ åˆ°ç¢°æ’æ£€æµ‹ä¸­
+        for (auto jar : _jars)
         {
-            Rect topPlatform = jar->getTopPlatformBox();
-            if (!topPlatform.equals(Rect::ZERO))
+            if (jar && !jar->isDestroyed())
             {
-                dynamicGroundRects.push_back(topPlatform);
+                Rect topPlatform = jar->getTopPlatformBox();
+                if (!topPlatform.equals(Rect::ZERO))
+                {
+                    dynamicGroundRects.push_back(topPlatform);
+                }
             }
         }
     }
-    
-    _player->update(dt, dynamicGroundRects);  // Ê¹ÓÃ°üº¬¹Ş×ÓÆ½Ì¨µÄÅö×²ÁĞ±í
+
+    _player->update(dt, dynamicGroundRects);  // ä½¿ç”¨åŒ…å«ç½å­å¹³å°çš„ç¢°æ’åˆ—è¡¨
 
     // ========================================
-    // 2. »ñÈ¡Íæ¼ÒÎ»ÖÃ²¢¸üĞÂ×ø±êÏÔÊ¾
+    // 2. è·å–ç©å®¶ä½ç½®å¹¶æ›´æ–°åæ ‡æ˜¾ç¤º
     // ========================================
     Vec2 playerPos = _player->getPosition();
 
-    // ¡¾ĞÂÔö¡¿¸üĞÂ×ø±êÏÔÊ¾
     if (_coordLabel)
     {
         char coordText[100];
@@ -423,19 +467,15 @@ void HelloWorld::update(float dt)
     }
 
     // ========================================
-    // 3. Ïà»úÁ¢¼´¸úËæÍæ¼Ò
+    // 3. ç›¸æœºç«‹å³è·Ÿéšç©å®¶
     // ========================================
     Size visibleSize = Director::getInstance()->getVisibleSize();
     Size mapSize = map->getContentSize();
-    // »ñÈ¡Ëõ·Å±ÈÀı (ÏÖÔÚÊÇ _gameLayer ÔÚËõ·Å)
     float scaleValue = _gameLayer->getScale();
 
-    // Ïà»úÆ«ÒÆĞèÒª³ËÒÔËõ·ÅÒò×Ó
-  // ÒòÎª Scene ±»Ëõ·ÅÁË£¬setPosition µÄµ¥Î»Ò²±»Ëõ·ÅÁË
     float targetX = visibleSize.width * 0.5f - playerPos.x * scaleValue;
     float targetY = visibleSize.height * 0.5f - playerPos.y * scaleValue;
 
-    // ¡¾±ß½çÏŞÖÆ¡¿È·±£Ïà»ú²»³¬³öµØÍ¼±ß½ç£¨Í¬ÑùĞèÒª¿¼ÂÇËõ·Å£©
     float scaledMapWidth = mapSize.width * scaleValue;
     float scaledMapHeight = mapSize.height * scaleValue;
 
@@ -458,316 +498,412 @@ void HelloWorld::update(float dt)
         targetY = (visibleSize.height - scaledMapHeight) * 0.5f;
     }
 
-    // ============================================================
-    // ¡¾ĞŞ¸Ä¡¿Ö»ÒÆ¶¯ÓÎÏ·²ã
-    // ============================================================
     _gameLayer->setPosition(targetX, targetY);
 
     // ========================================
-		// 3. ¡¾ĞŞ¸´¡¿ĞŞ¸Ä Enemy Åö×²¼ì²âÂß¼­
-        // ========================================
-        auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
-        if (enemy)
+    // 3. Enemy ç¢°æ’æ£€æµ‹é€»è¾‘
+    // ========================================
+    auto enemy = dynamic_cast<Enemy*>(_gameLayer->getChildByTag(999));
+    if (enemy)
+    {
+        // é˜²æ­¢åœ¨æ­¤å¸§å†…å› æ­»äº¡è¢«å›æ”¶
+        enemy->retain();
+        Rect enemyBox = enemy->getHitbox();
+        if (!enemyBox.equals(Rect::ZERO))
         {
-            // »ñÈ¡Åö×²Ïä£¬Èç¹ûÎª¿ÕÔòÌø¹ıÅö×²¼ì²â
-            Rect enemyBox = enemy->getHitbox();
-
-            // Ö»ÓĞµ±µĞÈËÅö×²ÏäÓĞĞ§Ê±²Å½øĞĞÅö×²¼ì²â
-            if (!enemyBox.equals(Rect::ZERO))
-            {
-				bool isEnemyHit = false;
-				// 1.¡¾ĞŞ¸´¡¿Ê×ÏÈ¼ì²â¹¥»÷ÊÇ·ñÃüÖĞµĞÈË
-                if (_player->isAttackPressed())
-                {
-                    Rect attackBox = _player->getAttackHitbox();
-
-                    if (attackBox.intersectsRect(enemyBox))
-                    {
-                        CCLOG("HIT! Player hit the Enemy!");
-                        enemy->takeDamage(1, _player->getPosition());  // ´«ÈëÍæ¼ÒÎ»ÖÃ
-						isEnemyHit = true;  // ±ê¼ÇµĞÈË±»»÷ÖĞ
-
-						// Èç¹ûµĞÈË±»»÷ÖĞ£¬Íæ¼ÒÖ´ĞĞ pogo ÌøÔ¾
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
-                    }
-                }
-				// 2.¡¾ĞŞ¸´¡¿¼ì²âµĞÈËÊÇ·ñÓëÍæ¼ÒÅö×²
-                if (!isEnemyHit) {  // Ö»ÓĞµ±µĞÈËÎ´±»¹¥»÷ÃüÖĞÊ±²Å¼ì²âÅö×²
-                    Rect playerBox = _player->getCollisionBox();
-
-                    if (playerBox.intersectsRect(enemyBox))
-                    {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG(" Player collided with Enemy!");
-                            _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
-							enemy->onCollideWithPlayer(_player->getPosition()); // ÈÃµĞÈË·´Ó¦Åö×²
-                        }
-                    }
-                }
-            }
-        }
-
-        // ========================================
-        // 4.¡¾ĞŞ¸´¡¿Zombie µĞÈË¸üĞÂºÍÅö×²¼ì²â
-        // ========================================
-        auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
-        if (zombie)
-        {
-            zombie->update(dt, playerPos, _groundRects);
-            // ÏÈ»ñÈ¡Åö×²Ïä£¬Èç¹ûÎª¿ÕÔòÌø¹ıÅö×²¼ì²â
-            Rect zombieBox = zombie->getHitbox();
-
-            if (!zombieBox.equals(Rect::ZERO))
-            {
-				bool isZombieHit = false;
-                if (_player->isAttackPressed())
-                {
-                    Rect attackBox = _player->getAttackHitbox();
-                    if (attackBox.intersectsRect(zombieBox))
-                    {
-                        CCLOG("HIT! Player hit the Zombie!");
-                        zombie->takeDamage(1, _player->getPosition());  // ´«ÈëÍæ¼ÒÎ»ÖÃ
-                        isZombieHit = true;
-
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
-                    }
-                }
-
-                // B. Body Collision
-                if (!isZombieHit)
-                {
-                    Rect playerBox = _player->getCollisionBox();
-                    if (playerBox.intersectsRect(zombieBox))
-                    {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG("Player collided with Zombie body!");
-                            _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
-                            zombie->onCollideWithPlayer(_player->getPosition());
-                        }
-                    }
-                }
-            }
-        }
-
-        // ========================================
-        // 5.¡¾ĞÂÔö¡¿Spike ÏİÚå¸üĞÂºÍÅö×²¼ì²â
-        // ========================================
-        auto spike = dynamic_cast<Spike*>(_gameLayer->getChildByTag(997));
-        if (spike)
-        {
-            // ¸üĞÂ´ÌµÄ×´Ì¬£¨¼ì²âÍæ¼ÒÊÇ·ñÔÚÏÂ·½£¬Ó¦ÓÃÖØÁ¦µÈ£©
-            spike->update(dt, playerPos, _groundRects);
-
-            // ¡¾ĞÂÔö¡¿¸üĞÂÆÁÄ»ÉÏµÄSpikeµ÷ÊÔĞÅÏ¢
-            if (_spikeDebugLabel)
-            {
-                char debugText[200];
-                int state = (int)spike->getHitbox().equals(Rect::ZERO) ? -1 : 0;
-                sprintf(debugText, "Spike:(%.0f,%.0f) State:%d Visible:%d", 
-                    spike->getPosition().x, spike->getPosition().y,
-                    state, spike->isVisible());
-                _spikeDebugLabel->setString(debugText);
-            }
-
-            // ¡¾µ÷ÊÔ¡¿ÔÚScene×ø±êÏµÖĞ»æÖÆSpikeµÄÎ»ÖÃ
-            if (_debugDrawNode)
-            {
-                _debugDrawNode->clear(); // Çå³ıÖ®Ç°µÄ»æÖÆ
-                
-                
-            }
-
-            // »ñÈ¡´ÌµÄÅö×²Ïä
-            Rect spikeBox = spike->getHitbox();
-
-            if (!spikeBox.equals(Rect::ZERO))
-            {
-                // ¼ì²âÍæ¼ÒÊÇ·ñÓë´ÌÅö×²
-                Rect playerBox = _player->getCollisionBox();
-                if (playerBox.intersectsRect(spikeBox))
-                {
-                    if (!_player->isInvincible())
-                    {
-                        CCLOG("Player hit by Spike!");
-                        _player->takeDamage(1, _groundRects); // ¡¾ĞŞ¸Ä¡¿´«ÈëÆ½Ì¨Êı¾İ
-                        // ´ÌÔì³ÉÉËº¦ºó¿ÉÒÔÑ¡ÔñÏûÊ§»ò±£³Ö
-                        // spike->changeState(Spike::State::DEAD);
-                    }
-                }
-            }
-        }
-        else
-        {
-            // Spike²»´æÔÚ
-            if (_spikeDebugLabel)
-            {
-                _spikeDebugLabel->setString("Spike: NOT FOUND (tag 997)");
-                _spikeDebugLabel->setColor(Color3B::RED);
-            }
-        }
-
-        // ========================================
-        // 6.¡¾ĞÂÔö¡¿Buzzer ·ÉĞĞµĞÈË¸üĞÂºÍÅö×²¼ì²â
-        // ========================================
-        // Buzzer 1 (tag 996)
-        auto buzzer1 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(996));
-        if (buzzer1)
-        {
-            // ¸üĞÂBuzzer AI
-            buzzer1->update(dt, playerPos);
-            
-            // »ñÈ¡Åö×²Ïä
-            Rect buzzer1Box = buzzer1->getHitbox();
-            
-            if (!buzzer1Box.equals(Rect::ZERO))
-            {
-                bool isBuzzer1Hit = false;
-                
-                // A. ¹¥»÷¼ì²â
-                if (_player->isAttackPressed())
-                {
-                    Rect attackBox = _player->getAttackHitbox();
-                    if (attackBox.intersectsRect(buzzer1Box))
-                    {
-                        CCLOG("HIT! Player hit Buzzer 1!");
-                        buzzer1->takeDamage(1, _player->getPosition());
-                        isBuzzer1Hit = true;
-                        
-                        // ÏÂÅüÊ±pogoÌøÔ¾
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
-                    }
-                }
-                
-                // B. ÉíÌåÅö×²
-                if (!isBuzzer1Hit)
-                {
-                    Rect playerBox = _player->getCollisionBox();
-                    if (playerBox.intersectsRect(buzzer1Box))
-                    {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG("Player collided with Buzzer 1!");
-                            _player->takeDamage(1, _groundRects);
-                            buzzer1->onCollideWithPlayer(_player->getPosition()); // ¡¾ĞÂÔö¡¿ÈÃBuzzer»÷ÍË
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Buzzer 2 (tag 995)
-        auto buzzer2 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(995));
-        if (buzzer2)
-        {
-            // ¸üĞÂBuzzer AI
-            buzzer2->update(dt, playerPos);
-            
-            // »ñÈ¡Åö×²Ïä
-            Rect buzzer2Box = buzzer2->getHitbox();
-            
-            if (!buzzer2Box.equals(Rect::ZERO))
-            {
-                bool isBuzzer2Hit = false;
-                
-                // A. ¹¥»÷¼ì²â
-                if (_player->isAttackPressed())
-                {
-                    Rect attackBox = _player->getAttackHitbox();
-                    if (attackBox.intersectsRect(buzzer2Box))
-                    {
-                        CCLOG("HIT! Player hit Buzzer 2!");
-                        buzzer2->takeDamage(1, _player->getPosition());
-                        isBuzzer2Hit = true;
-                        
-                        // ÏÂÅüÊ±pogoÌøÔ¾
-                        if (_player->getAttackDir() == -1) {
-                            _player->pogoJump();
-                        }
-                    }
-                }
-                
-                // B. ÉíÌåÅö×²
-                if (!isBuzzer2Hit)
-                {
-                    Rect playerBox = _player->getCollisionBox();
-                    if (playerBox.intersectsRect(buzzer2Box))
-                    {
-                        if (!_player->isInvincible())
-                        {
-                            CCLOG("Player collided with Buzzer 2!");
-                            _player->takeDamage(1, _groundRects);
-                            buzzer2->onCollideWithPlayer(_player->getPosition()); // ¡¾ĞÂÔö¡¿ÈÃBuzzer»÷ÍË
-                        }
-                    }
-                }
-            }
-        }
-
-        // ========================================
-        // 7.¡¾ĞÂÔö¡¿Jar ¹Ş×ÓÅö×²¼ì²â
-        // ========================================
-        for (auto jar : _jars)
-        {
-            if (!jar || jar->isDestroyed()) continue;
-            
-            // A. Íæ¼Ò¹¥»÷¹Ş×Ó
+            bool isEnemyHit = false;
+            // A. æ”»å‡»æ£€æµ‹
             if (_player->isAttackPressed())
             {
                 Rect attackBox = _player->getAttackHitbox();
-                Rect jarBox = jar->getCollisionBox();
-                
-                if (!jarBox.equals(Rect::ZERO) && attackBox.intersectsRect(jarBox))
+                if (attackBox.intersectsRect(enemyBox))
                 {
-                    CCLOG("Player hit the jar!");
-                    jar->takeDamage();
-                    
-                    // Èç¹ûÊÇÏÂÅü£¬Ö´ĞĞ pogo ÌøÔ¾
+                    CCLOG("HIT! Player hit the Enemy!");
+                    enemy->takeDamage(1, _player->getPosition());  // ä¼ å…¥ä½ç½®ç”¨äºå‡»é€€
+                    isEnemyHit = true;
                     if (_player->getAttackDir() == -1) {
                         _player->pogoJump();
                     }
                 }
             }
-            
-            // B. Íæ¼ÒÓë¹Ş×ÓµÄÎïÀíÅö×²£¨ÏñÇ½Ò»Ñù×èµ²£©
+            // B. ç¢°æ’æ£€æµ‹
+            if (!isEnemyHit) {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(enemyBox))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG(" Player collided with Enemy!");
+                        _player->takeDamage(1, enemy->getPosition(), _groundRects);
+                        enemy->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+        // è§£é”
+        enemy->release();
+    }
+
+    // ========================================
+    // 4. Zombie ç¢°æ’æ£€æµ‹
+    // ========================================
+    auto zombie = dynamic_cast<Zombie*>(_gameLayer->getChildByTag(998));
+    if (zombie)
+    {
+        zombie->retain();
+
+        zombie->update(dt, playerPos, _groundRects);
+        Rect zombieBox = zombie->getHitbox();
+
+        if (!zombieBox.equals(Rect::ZERO))
+        {
+            bool isZombieHit = false;
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(zombieBox))
+                {
+                    CCLOG("HIT! Player hit the Zombie!");
+                    zombie->takeDamage(1, _player->getPosition());
+                    isZombieHit = true;
+                    if (_player->getAttackDir() == -1) {
+                        _player->pogoJump();
+                    }
+                }
+            }
+
+            if (!isZombieHit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(zombieBox))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player collided with Zombie body!");
+                        _player->takeDamage(1, zombie->getPosition(), _groundRects);
+                        zombie->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+        zombie->release();
+    }
+
+    // ========================================
+    // 5. Spike é™·é˜±æ£€æµ‹
+    // ========================================
+    auto spike = dynamic_cast<Spike*>(_gameLayer->getChildByTag(997));
+    if (spike)
+    {
+        spike->update(dt, playerPos, _groundRects);
+
+        if (_spikeDebugLabel)
+        {
+            char debugText[200];
+            int state = (int)spike->getHitbox().equals(Rect::ZERO) ? -1 : 0;
+            sprintf(debugText, "Spike:(%.0f,%.0f) State:%d Visible:%d",
+                spike->getPosition().x, spike->getPosition().y,
+                state, spike->isVisible());
+            _spikeDebugLabel->setString(debugText);
+        }
+
+        Rect spikeBox = spike->getHitbox();
+        if (!spikeBox.equals(Rect::ZERO))
+        {
+            Rect playerBox = _player->getCollisionBox();
+            if (playerBox.intersectsRect(spikeBox))
+            {
+                if (!_player->isInvincible())
+                {
+                    CCLOG("Player hit by Spike!");
+                    _player->takeDamage(1, spike->getPosition(), _groundRects);
+                }
+            }
+        }
+    }
+    else
+    {
+        if (_spikeDebugLabel) {
+            _spikeDebugLabel->setString("Spike: NOT FOUND (tag 997)");
+            _spikeDebugLabel->setColor(Color3B::RED);
+        }
+    }
+
+    // ========================================
+    // 6. Buzzer é£è¡Œæ•Œäººæ£€æµ‹
+    // ========================================
+    // Buzzer 1 (tag 996)
+    auto buzzer1 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(996));
+    if (buzzer1)
+    {
+        buzzer1->retain();
+        buzzer1->update(dt, playerPos);
+        Rect buzzer1Box = buzzer1->getHitbox();
+        if (!buzzer1Box.equals(Rect::ZERO))
+        {
+            bool isBuzzer1Hit = false;
+            // æ”»å‡»
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(buzzer1Box))
+                {
+                    CCLOG("HIT! Player hit Buzzer 1!");
+                    buzzer1->takeDamage(1, _player->getPosition());
+                    isBuzzer1Hit = true;
+                    if (_player->getAttackDir() == -1) _player->pogoJump();
+                }
+            }
+            // ç¢°æ’
+            if (!isBuzzer1Hit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(buzzer1Box))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player collided with Buzzer 1!");
+                        _player->takeDamage(1, buzzer1->getPosition(), _groundRects);
+                        buzzer1->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+        buzzer1->release();
+    }
+    // Buzzer 2 (tag 995)
+    auto buzzer2 = dynamic_cast<Buzzer*>(_gameLayer->getChildByTag(995));
+    if (buzzer2)
+    {
+        buzzer2->retain();
+        buzzer2->update(dt, playerPos);
+        Rect buzzer2Box = buzzer2->getHitbox();
+        if (!buzzer2Box.equals(Rect::ZERO))
+        {
+            bool isBuzzer2Hit = false;
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                if (attackBox.intersectsRect(buzzer2Box))
+                {
+                    CCLOG("HIT! Player hit Buzzer 2!");
+                    buzzer2->takeDamage(1, _player->getPosition());
+                    isBuzzer2Hit = true;
+                    if (_player->getAttackDir() == -1) _player->pogoJump();
+                }
+            }
+            if (!isBuzzer2Hit)
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(buzzer2Box))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player collided with Buzzer 2!");
+                        _player->takeDamage(1, buzzer2->getPosition(), _groundRects);
+                        buzzer2->onCollideWithPlayer(_player->getPosition());
+                    }
+                }
+            }
+        }
+        buzzer2->release();
+    }
+
+    // ========================================
+    // 7. Jar ç½å­ç¢°æ’æ£€æµ‹
+    // ========================================
+    // ã€ä¿®å¤ã€‘æ·»åŠ å®‰å…¨æ£€æŸ¥ï¼šåªåœ¨ Level 2 ä¸”ç½å­åˆ—è¡¨ä¸ä¸ºç©ºæ—¶å¤„ç†
+    if (_currentLevel == 2 && !_jars.empty())
+    {
+        // ä½¿ç”¨è¿­ä»£å™¨éå†ï¼Œå®‰å…¨åˆ é™¤æ— æ•ˆçš„ç½å­æŒ‡é’ˆ
+        for (auto it = _jars.begin(); it != _jars.end(); )
+        {
+            auto jar = *it;
+
+            // 1. æ£€æŸ¥æŒ‡é’ˆæœ‰æ•ˆæ€§æˆ–æ˜¯å¦å·²è¢«é”€æ¯
+            // å¦‚æœ jar å·²ç»è¢«é”€æ¯ (isDestroyed) å¹¶ä¸”å…¶å¼•ç”¨è®¡æ•°é™ä¸º1ï¼ˆåªè¢« _jars åˆ—è¡¨æŒæœ‰ï¼‰ï¼Œ
+            // é‚£ä¹ˆå®ƒå¾ˆå¿«å°±ä¼šè¢«å¼•æ“å›æ”¶ï¼Œæˆ‘ä»¬åº”è¯¥å°†å®ƒä»åˆ—è¡¨ä¸­ç§»é™¤ã€‚
+            if (!jar || (jar->isDestroyed() && jar->getReferenceCount() <= 1))
+            {
+                it = _jars.erase(it); // å¦‚æœå¯¹è±¡å·²å¤±æ•ˆæˆ–å³å°†å¤±æ•ˆï¼Œä»åˆ—è¡¨ä¸­ç§»é™¤
+                CCLOG("Removed an invalid or destroyed jar from the list.");
+                continue;
+            }
+
+            if (jar->isDestroyed())
+            {
+                it++;
+                continue;
+            }
+            // A. ç©å®¶æ”»å‡»ç½å­
+            if (_player->isAttackPressed())
+            {
+                Rect attackBox = _player->getAttackHitbox();
+                Rect jarBox = jar->getCollisionBox();
+
+                if (!jarBox.equals(Rect::ZERO) && attackBox.intersectsRect(jarBox))
+                {
+                    CCLOG("Player hit the jar!");
+                    jar->takeDamage();
+                    // ç½å­ä¹Ÿæ˜¯å¯ä»¥ä¸‹åŠˆçš„
+                    if (_player->getAttackDir() == -1) {
+                        _player->pogoJump();
+                    }
+                }
+            }
+
+            // B. ç©å®¶ä¸ç½å­çš„ç‰©ç†ç¢°æ’ï¼ˆåƒå¢™ä¸€æ ·é˜»æŒ¡ï¼‰
             if (!jar->isDestroyed())
             {
                 Rect playerBox = _player->getCollisionBox();
                 Rect jarBox = jar->getCollisionBox();
-                
+
                 if (!jarBox.equals(Rect::ZERO) && playerBox.intersectsRect(jarBox))
                 {
-                    // ¼òµ¥µÄÍÆ³ö´¦Àí£¨·ÀÖ¹Íæ¼Ò´©¹ı¹Ş×Ó£©
-                    Vec2 playerPos = _player->getPosition();
-                    
-                    // ÅĞ¶Ï´ÓÄÄ¸ö·½ÏòÅö×²
+                    // ç®€å•çš„æ¨å‡ºå¤„ç†
                     float overlapLeft = (playerBox.getMaxX() - jarBox.getMinX());
                     float overlapRight = (jarBox.getMaxX() - playerBox.getMinX());
-                    
-                    if (overlapLeft < overlapRight)
-                    {
-                        // ´Ó×ó±ßÅö×²£¬ÍÆµ½×ó±ß
+
+                    if (overlapLeft < overlapRight) {
                         _player->setPositionX(jarBox.getMinX() - playerBox.size.width / 2);
                     }
-                    else
-                    {
-                        // ´ÓÓÒ±ßÅö×²£¬ÍÆµ½ÓÒ±ß
+                    else {
                         _player->setPositionX(jarBox.getMaxX() + playerBox.size.width / 2);
                     }
-                    
-                    // Í£Ö¹Ë®Æ½ËÙ¶È
                     _player->setVelocityX(0);
                 }
             }
+            it++;
         }
+    }
+    
+    // ========================================
+    // 8. Boss æˆ˜æ–—é€»è¾‘ (Level 3)
+    // ========================================
+    if (_currentLevel == 3 && _boss)
+    {
+        // A. è§¦å‘ Boss (ç©å®¶åˆ°è¾¾ X >= 1000)
+        if (!_bossTriggered && playerPos.x >= 1000.0f)
+        {
+            // Boss è‡ªåŠ¨å¼€å§‹ï¼Œæ— éœ€ trigger() æ–¹æ³•
+            _bossTriggered = true;
+            CCLOG("========== BOSS TRIGGERED ==========");
+        }
+        
+        // B. æ›´æ–° Boss AI
+        if (_bossTriggered)
+        {
+            _boss->updateBoss(dt, playerPos, _groundRects);
+            
+            // C. Boss ç¢°æ’æ£€æµ‹
+            _boss->retain();
+            
+            // èº«ä½“ç¢°æ’
+            Rect bossBodyBox = _boss->getBodyHitbox();
+            if (!bossBodyBox.equals(Rect::ZERO))
+            {
+                bool isBossHit = false;
+                
+                // ç©å®¶æ”»å‡» Boss
+                if (_player->isAttackPressed())
+                {
+                    Rect attackBox = _player->getAttackHitbox();
+                    if (attackBox.intersectsRect(bossBodyBox))
+                    {
+                        CCLOG("HIT! Player hit the Boss!");
+                        _boss->takeDamage(1);  // æ™®é€šæ”»å‡»
+                        isBossHit = true;
+                        
+                        // ä¸‹åŠˆåå¼¹
+                        if (_player->getAttackDir() == -1) {
+                            _player->pogoJump();
+                        }
+                    }
+                }
+                
+                // Boss ç¢°æ’ç©å®¶ï¼ˆèº«ä½“ï¼‰
+                if (!isBossHit)
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(bossBodyBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player collided with Boss body!");
+                            _player->takeDamage(1, _boss->getPosition(), _groundRects);
+                        }
+                    }
+                }
+            }
+            
+            // é”¤å­ç¢°æ’ (jumpAttack æ—¶)
+            Rect bossHammerBox = _boss->getHammerHitbox();
+            if (!bossHammerBox.equals(Rect::ZERO))
+            {
+                Rect playerBox = _player->getCollisionBox();
+                if (playerBox.intersectsRect(bossHammerBox))
+                {
+                    if (!_player->isInvincible())
+                    {
+                        CCLOG("Player hit by Boss hammer!");
+                        _player->takeDamage(1, _boss->getPosition(), _groundRects);
+                    }
+                }
+            }
+            
+            _boss->release();
+        }
+    }
+
+    // ========================================
+    // 9. FKFireball ç¢°æ’æ£€æµ‹ (Level 3)
+    // ========================================
+    if (_currentLevel == 3)
+    {
+        auto children = _gameLayer->getChildren();
+        for (auto child : children)
+        {
+            auto fireball = dynamic_cast<FKFireball*>(child);
+            if (fireball)
+            {
+                fireball->update(dt, _groundRects);
+                Rect fireballBox = fireball->getCollisionBox();
+                if (!fireballBox.equals(Rect::ZERO))
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(fireballBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player hit by FKFireball!");
+                            _player->takeDamage(1, fireball->getPosition(), _groundRects);
+                            fireball->removeFromParent(); // ç«çƒç¢°åˆ°ç©å®¶åæ¶ˆå¤±
+                        }
+                    }
+                }
+            }
+            else if (auto shockwave = dynamic_cast<FKShockwave*>(child))
+            {
+                shockwave->update(dt, _groundRects);
+                Rect swBox = shockwave->getCollisionBox();
+                if (!swBox.equals(Rect::ZERO))
+                {
+                    Rect playerBox = _player->getCollisionBox();
+                    if (playerBox.intersectsRect(swBox))
+                    {
+                        if (!_player->isInvincible())
+                        {
+                            CCLOG("Player hit by FKShockwave!");
+                            _player->takeDamage(1, shockwave->getPosition(), _groundRects);
+                            shockwave->removeFromParent();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 void HelloWorld::menuCloseCallback(Ref* pSender)
 {
@@ -775,76 +911,72 @@ void HelloWorld::menuCloseCallback(Ref* pSender)
 }
 
 // ========================================
-// ¼ÓÔØµØÍ¼µÄÍ¨ÓÃ·½·¨
+// åŠ è½½åœ°å›¾çš„é€šç”¨æ–¹æ³•
 // ========================================
 void HelloWorld::loadMap(const std::string& mapPath)
 {
-    // 1. Çå³ı¾ÉµØÍ¼
+    // ã€ä¿®å¤å»ºè®®ã€‘åœ¨ç§»é™¤æ—§åœ°å›¾ä¹‹å‰ï¼Œé¦–å…ˆæ¸…ç†ä¾èµ–äºå®ƒçš„å¯¹è±¡
+    if (_currentLevel == 3)
+    {
+        // æ¸…ç† Level 2 çš„æ•Œäººå’Œå¯¹è±¡
+        // ã€ä¿®å¤ã€‘ä¸å†éå† _jars å‘é‡ï¼Œå› ä¸ºå®ƒå¯èƒ½åŒ…å«æ‚¬ç©ºæŒ‡é’ˆã€‚
+        // æ”¹ä¸ºé€šè¿‡ tag ä» _gameLayer ä¸­å®‰å…¨åœ°æŸ¥æ‰¾å¹¶ç§»é™¤ã€‚
+        for (int i = 0; i < 3; ++i)
+        {
+            auto jarNode = _gameLayer->getChildByTag(990 - i);
+            if (jarNode)
+            {
+                jarNode->removeFromParent();
+            }
+        }
+
+        // ã€ä¿®å¤ã€‘ç«‹å³æ¸…ç©ºå‘é‡ï¼Œé˜²æ­¢æ‚¬ç©ºæŒ‡é’ˆé—®é¢˜
+        _jars.clear();
+
+        // æ¸…é™¤ Fireball
+        auto oldFireball = _gameLayer->getChildByTag(987);
+        if (oldFireball) oldFireball->removeFromParent();
+    }
+
+    // 1. æ¸…é™¤æ—§åœ°å›¾
     auto oldMap = _gameLayer->getChildByTag(123);
-    if (oldMap)
-    {
-        oldMap->removeFromParent();
-        CCLOG("Old map removed");
-    }
+    if (oldMap) oldMap->removeFromParent();
 
-    // 2. Çå³ı¾ÉµÄÅö×²¿ò»æÖÆ½Úµã
+    // 2. æ¸…é™¤æ—§çš„ç¢°æ’æ¡†ç»˜åˆ¶èŠ‚ç‚¹
     auto oldDrawNode = dynamic_cast<DrawNode*>(_gameLayer->getChildByTag(1000));
-    if (oldDrawNode)
-    {
-        oldDrawNode->removeFromParent();
-        CCLOG("Old DrawNode removed");
-    }
+    if (oldDrawNode) oldDrawNode->removeFromParent();
 
-    // 3. Çå³ı¾ÉµÄµĞÈË£¨level1µÄµĞÈË£©
+    // 3. æ¸…é™¤æ—§çš„æ•Œäºº
     if (_currentLevel == 2)
     {
-        // ÒÆ³ı Enemy
+        // æ¸…ç† Level 1 çš„æ•Œäºº
         auto enemy = _gameLayer->getChildByTag(999);
-        if (enemy) {
-            enemy->removeFromParent();
-            CCLOG("Enemy removed for level2");
-        }
+        if (enemy) enemy->removeFromParent();
 
-        // ÒÆ³ı Zombie
         auto zombie = _gameLayer->getChildByTag(998);
-        if (zombie) {
-            zombie->removeFromParent();
-            CCLOG("Zombie removed for level2");
-        }
+        if (zombie) zombie->removeFromParent();
 
-        // ÒÆ³ı Spike
         auto spike = _gameLayer->getChildByTag(997);
-        if (spike) {
-            spike->removeFromParent();
-            CCLOG("Spike removed for level2");
-        }
+        if (spike) spike->removeFromParent();
 
-        // ÒÆ³ı Buzzer 1
         auto buzzer1 = _gameLayer->getChildByTag(996);
-        if (buzzer1) {
-            buzzer1->removeFromParent();
-            CCLOG("Buzzer1 removed for level2");
-        }
+        if (buzzer1) buzzer1->removeFromParent();
 
-        // ÒÆ³ı Buzzer 2
         auto buzzer2 = _gameLayer->getChildByTag(995);
-        if (buzzer2) {
-            buzzer2->removeFromParent();
-            CCLOG("Buzzer2 removed for level2");
-        }
-        
-        // ¡¾ĞÂÔö¡¿ÒÆ³ı¾ÉµÄ Fireball£¨Èç¹û´æÔÚ£©
-        auto oldFireball = _gameLayer->getChildByTag(987);
-        if (oldFireball) {
-            oldFireball->removeFromParent();
-            CCLOG("Old Fireball removed for level2");
-        }
+        if (buzzer2) buzzer2->removeFromParent();
+    }
+    
+    // ã€æ–°å¢ã€‘æ¸…ç†æ—§çš„ Boss
+    if (_boss)
+    {
+        _boss->removeFromParent();
+        _boss = nullptr;
+        _bossTriggered = false;
     }
 
-    // 4. ¼ÓÔØĞÂµØÍ¼
+    // 4. åŠ è½½æ–°åœ°å›¾
     auto map = TMXTiledMap::create(mapPath);
-    if (map == nullptr)
-    {
+    if (map == nullptr) {
         CCLOG("Error: Failed to load %s", mapPath.c_str());
         return;
     }
@@ -854,12 +986,29 @@ void HelloWorld::loadMap(const std::string& mapPath)
     map->setTag(123);
     _gameLayer->addChild(map, -99);
 
-    // 5. ½âÎöÅö×²Êı¾İ
+    // 5. è§£æç¢°æ’æ•°æ®
     this->parseMapCollisions(map);
 
-    // 6. »æÖÆµ÷ÊÔÅö×²¿ò
+    // ============================================================
+    // ã€ä¿®æ”¹ã€‘Level 3 åç§»é‡ç»Ÿä¸€ç®¡ç†
+    // å®šä¹‰ä¸€ä¸ª mapOffset å˜é‡ï¼ŒåŒæ—¶åº”ç”¨äºèƒŒæ™¯å›¾å’Œç¢°æ’æ¡†
+    // ============================================================
+    Vec2 mapOffset = Vec2::ZERO;
+    if (_currentLevel == 3)
+    {
+        // è¿™é‡Œè®¾ç½®ä½ æƒ³è¦çš„åç§»é‡ï¼Œä¾‹å¦‚ (0, 300)
+        mapOffset = Vec2(300, 250);
+
+        // ã€å…³é”®ã€‘ä¿®æ­£ç¢°æ’æ¡†ä½ç½®ï¼Œä½¿å…¶è·Ÿéšåç§»é‡ç§»åŠ¨
+        for (auto& rect : _groundRects)
+        {
+            rect.origin += mapOffset;
+        }
+    }
+
+    // 6. ç»˜åˆ¶è°ƒè¯•ç¢°æ’æ¡† (ç°åœ¨ä¼šç»˜åˆ¶ä¿®æ­£åçš„ä½ç½®)
     auto drawNode = DrawNode::create();
-    drawNode->setTag(1000);  // ¸øDrawNodeÉèÖÃtag£¬·½±ãºóĞøÉ¾³ı
+    drawNode->setTag(1000);
     _gameLayer->addChild(drawNode, 999);
 
     for (const auto& rect : _groundRects)
@@ -867,112 +1016,184 @@ void HelloWorld::loadMap(const std::string& mapPath)
         drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
     }
 
-    CCLOG("========== Map Loaded ==========");
-    CCLOG("Map: %s", mapPath.c_str());
-    CCLOG("Collision rects count: %lu", _groundRects.size());
-    CCLOG("================================");
+    CCLOG("========== Map Loaded: %s ==========", mapPath.c_str());
 
-    // ¡¾ĞÂÔö¡¿Èç¹ûÊÇ level2£¬´´½¨¹Ş×ÓºÍÓ×³æ
+    // 7. æ ¹æ®å…³å¡åˆ›å»ºç‰¹å®šçš„æ•Œäººå’Œå¯¹è±¡
     if (_currentLevel == 2)
     {
-        // Çå¿Õ¾É¹Ş×ÓÁĞ±í
         _jars.clear();
-        
-        // ÔÚ X=1700 µ½ X=3100 Ö®¼ä¾ùÔÈ·ÅÖÃ 3 ¸ö¹Ş×Ó
-        // ¼ä¾à = (3100 - 1700) / 2 = 700
+
         float startX = 1700.0f;
         float spacing = 700.0f;
-        float jarY = 346.0f;  // ¡¾ĞŞ¸Ä¡¿¹Ş×Ó·ÅÔÚµØÃæÉÏ£¨level2 µØÃæ¸ß¶È£©
-        
+        float jarY = 346.0f;
+
         for (int i = 0; i < 3; i++)
         {
             float jarX = startX + i * spacing;
             auto jar = Jar::create("warm/jar.png", Vec2(jarX, jarY));
-            
+
             if (jar)
             {
-                jar->setTag(990 - i);  // tags: 990, 989, 988
+                jar->setTag(990 - i);
                 _gameLayer->addChild(jar, 5);
                 _jars.push_back(jar);
-                
-                CCLOG("Jar %d created at position (%.0f, %.0f)", i + 1, jarX, jarY);
             }
         }
-        
-        CCLOG("========== Level 2 Jars Created ==========");
-        CCLOG("Total jars: %lu", _jars.size());
-        CCLOG("==========================================");
-        
-        // ¡¾ĞÂÔö¡¿´´½¨ Fireball ¶ÔÏó
+
+        // åˆ›å»º Fireball
         auto fireball = Fireball::create("fireball/fireball_1.png");
         if (fireball)
         {
             fireball->setPosition(Vec2(5529.0f, 650.0f));
-            fireball->setTag(987);  // ¸ø fireball Ò»¸ö tag
+            fireball->setTag(987);
             _gameLayer->addChild(fireball, 5);
-            CCLOG("Fireball created at position (5529, 500)");
+        }
+    }
+    else if (_currentLevel == 3)
+    {
+        // ============================================================
+        // Level 3 ç‰¹æ®Šå¤„ç†ï¼šæ‰‹åŠ¨åŠ è½½èƒŒæ™¯å›¾
+        // ============================================================
+        auto bg = Sprite::create("maps/GameAsset/fight.png"); // ç¡®ä¿è·¯å¾„å¯¹åº” Resources/maps/GameAsset/fight.png
+        if (bg)
+        {
+            bg->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+
+            // ã€ç”¨æˆ·è¯·æ±‚ã€‘ä½¿ç”¨ä¸Šé¢å®šä¹‰çš„ mapOffset æ¥è®¾ç½®èƒŒæ™¯å›¾ä½ç½®
+            // è¿™æ ·èƒŒæ™¯å›¾å’Œç¢°æ’æ¡†å°±åŒæ­¥ç§»åŠ¨äº†ï¼
+            bg->setPosition(mapOffset);
+
+            // æ·»åŠ åˆ° map èŠ‚ç‚¹çš„æœ€åº•å±‚ (-1)ï¼Œè¿™æ ·å®ƒæ°¸è¿œåœ¨ map çš„å…¶ä»–å…ƒç´ ï¼ˆå¦‚ç¢°æ’ï¼‰åé¢
+            map->addChild(bg, -1);
+
+            // å¼ºåˆ¶åŒæ­¥åœ°å›¾å¤§å°ä¸ºèƒŒæ™¯å›¾å¤§å°
+            map->setContentSize(bg->getContentSize());
+
+            CCLOG("Success: Level 3 background loaded manually.");
         }
         else
         {
-            CCLOG("Error: Failed to create Fireball");
+            CCLOG("Error: Failed to load Level 3 background 'maps/GameAsset/fight.png'");
         }
+
+        // ============================================================
+        // ã€æ–°å¢ã€‘åˆ›å»º Boss
+        // ============================================================
+        // åœ°æ¿ Y åæ ‡æ˜¯ 856ï¼ˆä» level3.tmx collision å¯ä»¥çœ‹åˆ°ï¼‰
+        // Boss åº”è¯¥ç«™åœ¨åœ°æ¿ä¸Šï¼Œæ‰€ä»¥ Y = 856
+        float groundY = 856.0f + mapOffset.y;
+        _boss = Boss::create(Vec2(1650 + mapOffset.x, groundY + 200));  // +200 è®©å®ƒä»ç©ºä¸­æ‰è½
+        if (_boss)
+        {
+            _boss->setTag(980);  // Boss tag
+            _gameLayer->addChild(_boss, 6);
+            _bossTriggered = false;
+
+            // ã€æ–°å¢ã€‘è®¾ç½®ç«çƒå›è°ƒ
+            _boss->setFireballCallback([this, mapOffset](const Vec2& pos) {
+                auto fireball = FKFireball::create("boss/rampageAttack/fk-fireball.png");
+                if (fireball)
+                {
+                    // ã€ä¿®å¤ã€‘å°† Boss å±€éƒ¨éšæœºåæ ‡è½¬æ¢ä¸ºä¸–ç•Œåæ ‡
+                    fireball->setPosition(Vec2(pos.x, pos.y));
+                    _gameLayer->addChild(fireball, 7); // ç¡®ä¿åœ¨ Boss ä¸Šé¢
+                }
+            });
+            _boss->setShockwaveCallback([this](const Vec2& pos, float dir) {
+                auto shockwave = FKShockwave::create("boss/shockwaveAttack/fk-shockwave.png", dir);
+                if (shockwave)
+                {
+                    shockwave->setPosition(pos);
+                    _gameLayer->addChild(shockwave, 7);
+                }
+            });
+            
+            CCLOG("Boss created at (%.0f, %.0f) for falling", 1650 + mapOffset.x, groundY + 200);
+        }
+        else
+        {
+            CCLOG("Error: Failed to create Boss!");
+        }
+
+        // å¯ä»¥åœ¨è¿™é‡Œæ·»åŠ  Level 3 çš„æ•Œäºº
+        CCLOG("Level 3 loaded - Ready for battle!");
     }
 }
 
 // ========================================
-// ÇĞ»»µ½Level2µÄ·½·¨
+// åˆ‡æ¢åˆ°Level2çš„æ–¹æ³•
 // ========================================
 void HelloWorld::switchToLevel2()
 {
     if (_isTransitioning || _currentLevel == 2) return;
-    
+
     _isTransitioning = true;
     CCLOG("========== Switching to Level 2 ==========");
 
-    // 1. ´´½¨ºÚÆÁÕÚÕÖ
     auto blackLayer = LayerColor::create(Color4B::BLACK);
     blackLayer->setOpacity(0);
-    this->addChild(blackLayer, 999);  // ×î¸ß²ã¼¶£¬¸²¸ÇËùÓĞÄÚÈİ
+    this->addChild(blackLayer, 999);
 
-    // 2. ºÚÆÁµ­Èë¶¯»­ĞòÁĞ
-    auto fadeIn = FadeTo::create(0.5f, 255);  // 0.5Ãë½¥ºÚ
-    
+    auto fadeIn = FadeTo::create(0.5f, 255);
+
     auto switchMap = CallFunc::create([this]() {
-        // ÔÚºÚÆÁÊ±ÇĞ»»µØÍ¼
-        CCLOG("Loading level2.tmx...");
-        
-        // ÏÈ¸üĞÂ¹Ø¿¨±àºÅ£¨ÕâÑùloadMap¾ÍÖªµÀÒªÇåÀíµĞÈË£©
         _currentLevel = 2;
-        
-        // ¼ÓÔØlevel2µØÍ¼
         loadMap("maps/level2.tmx");
-        
-        // ÖØÖÃÍæ¼ÒÎ»ÖÃµ½level2µÄÆğµã£¨×î×ó¶Ë£©
+
         if (_player)
         {
-            _player->setPosition(Vec2(400, 1300));  // level2Æğµã
-            _player->setVelocityX(0);  // ÖØÖÃË®Æ½ËÙ¶È
-            CCLOG("Player repositioned to level2 start: (400, 1300)");
+            _player->setPosition(Vec2(400, 1300));
+            _player->setVelocityX(0);
         }
-    });
-    
-    auto delay = DelayTime::create(0.3f);  // ±£³ÖºÚÆÁ0.3Ãë
-    
-    auto fadeOut = FadeTo::create(0.5f, 0);  // 0.5Ãë½¥ÁÁ
-    
+        });
+
+    auto delay = DelayTime::create(0.3f);
+    auto fadeOut = FadeTo::create(0.5f, 0);
+
     auto cleanup = CallFunc::create([this, blackLayer]() {
         blackLayer->removeFromParent();
         _isTransitioning = false;
         CCLOG("========== Level 2 loaded successfully ==========");
-    });
+        });
 
-    // 3. Ö´ĞĞ¶¯×÷ĞòÁĞ
-    blackLayer->runAction(Sequence::create(
-        fadeIn,      // ½¥ºÚ
-        switchMap,   // ÇĞ»»µØÍ¼
-        delay,       // ±£³ÖºÚÆÁ
-        fadeOut,     // ½¥ÁÁ
-        cleanup,     // ÇåÀí
-        nullptr
-    ));
+    blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
+}
+
+// ========================================
+// åˆ‡æ¢åˆ°Level3çš„æ–¹æ³•
+// ========================================
+void HelloWorld::switchToLevel3()
+{
+    if (_isTransitioning || _currentLevel == 3) return;
+
+    _isTransitioning = true;
+    CCLOG("========== Switching to Level 3 ==========");
+
+    auto blackLayer = LayerColor::create(Color4B::BLACK);
+    blackLayer->setOpacity(0);
+    this->addChild(blackLayer, 999);
+
+    auto fadeIn = FadeTo::create(0.5f, 255);
+
+    auto switchMap = CallFunc::create([this]() {
+        _currentLevel = 3;
+        loadMap("maps/level3.tmx");
+
+        if (_player)
+        {
+            _player->setPosition(Vec2(500, 1300));
+            _player->setVelocityX(0);
+        }
+        });
+
+    auto delay = DelayTime::create(0.3f);
+    auto fadeOut = FadeTo::create(0.5f, 0);
+
+    auto cleanup = CallFunc::create([this, blackLayer]() {
+        blackLayer->removeFromParent();
+        _isTransitioning = false;
+        CCLOG("========== Level 3 loaded successfully ==========");
+        });
+
+    blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
 }

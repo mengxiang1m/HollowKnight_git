@@ -114,4 +114,31 @@ public:
 private:
     float _timer; float _duration;
 };
+
+// ==========================================
+// 【新增】凝聚状态 
+// ==========================================
+class StateFocus : public PlayerState
+{
+public:
+    virtual void enter(Player* player) override;
+    virtual void update(Player* player, float dt) override;
+    virtual void exit(Player* player) override;
+
+private:
+    float _timer;
+    bool _hasHealed;      // 标记是否已回血
+    bool _isEnding;       // 标记是否进入了收尾(End)阶段
+};
+
+// ==========================================
+// 【新增】死亡状态
+// ==========================================
+class StateDead : public PlayerState
+{
+public:
+    virtual void enter(Player* player) override;
+    virtual void update(Player* player, float dt) override;
+    virtual void exit(Player* player) override;
+};
 #endif // __PLAYER_STATES_H__
