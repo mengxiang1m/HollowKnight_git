@@ -663,6 +663,9 @@ void Boss::flashEffect()
 
 Rect Boss::getBodyHitbox() const
 {
+    // 如果已死亡，不再有碰撞体积
+    if (_isDead) return Rect::ZERO;
+
     if (!_sprite) return Rect::ZERO;
     Size size = _sprite->getContentSize();
     Vec2 pos = this->getPosition();
@@ -684,6 +687,9 @@ Rect Boss::getBodyHitbox() const
 
 Rect Boss::getHammerHitbox() const
 {
+    // 如果已死亡，不再有碰撞体积
+    if (_isDead) return Rect::ZERO;
+
     if ((_state == State::Jump_Attack || _state == State::Rampage_Attack || _state == State::Shockwave_Attack) && _onGround && _isHammerActive)
     {
         Vec2 pos = this->getPosition();
