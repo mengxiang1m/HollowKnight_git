@@ -1,4 +1,5 @@
 #include "Enemy.h"
+#include "HitEffect.h"
 USING_NS_CC;
 
 Enemy* Enemy::create(const std::string& filename)
@@ -155,11 +156,15 @@ void Enemy::update(float dt)
 // ======================================================================
 void Enemy::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
 {
-    // 【修复】如果已经死亡 或 处于无敌状态，直接返回
     if (_currentState == State::DEAD || _isInvincible) return;
 
     _health -= damage;
     CCLOG(" Enemy took % d damage!Health: % d / % d", damage, _health, _maxHealth);
+    // ====== 新增：受击打击感特效 ======
+    float fxSize = std::max(this->getContentSize().width, this->getContentSize().height) * 1.1f;
+    // 向下偏移30像素
+    HitEffect::play(this->getParent(), this->getPosition() + Vec2(0, this->getContentSize().height * 0.5f - 30.0f), fxSize);
+    // ===============================
     // 开启无敌
     _isInvincible = true;
     // ========================================
@@ -277,6 +282,24 @@ void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
     this->runAction(easeOut);
 
     CCLOG("[Enemy] Knocked back by player collision");
+}
+
+void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos, int playerFacing)
+{
+    if (_currentState == State::DEAD)
+    {
+        return;
+    }
+    // 按主角相对enemy的方向击退（主角在左，enemy向右退；主角在右，enemy向左退）
+    float knockbackDirection = (playerPos.x < this->getPositionX()) ? 1.0f : -1.0f;
+    float knockbackDistance = 40.0f;
+    float knockbackDuration = 0.15f;
+    Vec2 enemyPos = this->getPosition();
+    Vec2 knockbackTarget = Vec2(enemyPos.x + knockbackDirection * knockbackDistance, enemyPos.y);
+    auto knockback = MoveTo::create(knockbackDuration, knockbackTarget);
+    auto easeOut = EaseOut::create(knockback, 2.0f);
+    this->runAction(knockback);
+    CCLOG("[Enemy] Knocked back by player collision (by relative position)");
 }
 
 Enemy::~Enemy()

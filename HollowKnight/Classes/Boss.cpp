@@ -1,5 +1,6 @@
 #include "Boss.h"
 #include "FKFireball.h" // 【新增】
+#include "HitEffect.h"
 
 USING_NS_CC;
 
@@ -618,6 +619,13 @@ void Boss::takeDamage(int damage)
 
     _hurtTimer = HURT_COOLDOWN;
     flashEffect();
+
+    // ====== 新增：受击打击感特效 ======
+    if (_sprite) {
+        float fxSize = std::max(_sprite->getContentSize().width, _sprite->getContentSize().height) * BOSS_SCALE * 0.7f; // 缩小特效
+        HitEffect::play(this->getParent(), this->getPosition() + Vec2(0, _sprite->getContentSize().height * BOSS_SCALE * 0.5f), fxSize);
+    }
+    // ===============================
 
     if (_state == State::Stunned)
     {

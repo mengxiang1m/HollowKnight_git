@@ -85,15 +85,13 @@ bool HelloWorld::init()
     //////////////////////////////////////////////////////////////////////
     // 3. 【测试配置】直接加载 Level 2 并将主角放在最右端
     //////////////////////////////////////////////////////////////////////
-    _currentLevel = 2;  // 设置为 Level 2
-    loadMap("maps/level2.tmx");  // 加载 Level 2 地图
+    _currentLevel = 1;  // 设置为 Level 1
+    loadMap("maps/level1.tmx");  // 加载 Level 1 地图
 
     //////////////////////////////////////////////////////////////////////
     // 4. 在 init 中创建 Level 1 特有的敌人
     // 【注意】现在从 Level 2 开始测试，所以不需要创建 Level 1 的敌人
-    //////////////////////////////////////////////////////////////////////
-
-    /*
+    // 取消注释，恢复level1敌人创建
     // --- 创建 Enemy ---
     auto enemy = Enemy::create("enemies/enemy_walk_1.png");
     if (enemy)
@@ -102,19 +100,14 @@ bool HelloWorld::init()
         enemy->setPatrolRange(500, 800);
         enemy->setTag(999);
         _gameLayer->addChild(enemy, 5);
-
-        // 死亡回调 (回魂 + 音效)
         enemy->setOnDeathCallback([=]() {
             if (_player) {
                 _player->gainSoulOnKill();
                 CCLOG("Soul gained from Enemy!");
             }
-            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
-            });
-
+        });
         CCLOG("Enemy spawned!");
     }
-
     // --- 创建 Zombie 敌人 ---
     auto zombie = Zombie::create("zombie/walk/walk_1.png");
     if (zombie)
@@ -123,32 +116,24 @@ bool HelloWorld::init()
         zombie->setPatrolRange(1000, 1400);
         zombie->setTag(998);
         _gameLayer->addChild(zombie, 5);
-
-        // 死亡回调
         zombie->setOnDeathCallback([=]() {
             if (_player) {
-                // 兼容不同写法，这里假设 Player 有 gainSoulOnKill
                 _player->gainSoulOnKill();
                 CCLOG("Soul gained from Zombie!");
             }
-            // SimpleAudioEngine::getInstance()->playEffect("audio/enemy_death.wav");
-            });
-
+        });
         CCLOG("Zombie spawned at position (1200, 430)!");
     }
-
     // --- 创建 Spike 陷阱 ---
     auto textureCache = Director::getInstance()->getTextureCache();
     auto spikeTexture = textureCache->addImage("traps/spike.png");
     Spike* spike = nullptr;
-
     if (spikeTexture) {
         spike = Spike::create("traps/spike.png");
     }
     else {
         spike = Spike::create("enemies/enemy_walk_1.png"); // Fallback
     }
-
     if (spike)
     {
         Vec2 spikePos = Vec2(3590.0f, 1000.0f);
@@ -161,7 +146,6 @@ bool HelloWorld::init()
         spike->setBlendFunc(BlendFunc::ALPHA_PREMULTIPLIED);
         _gameLayer->addChild(spike, 5);
     }
-
     // --- 创建 Buzzer 飞行敌人 ---
     auto buzzer1 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer1)
@@ -170,15 +154,13 @@ bool HelloWorld::init()
         buzzer1->setInitialPosition(buzzer1Pos);
         buzzer1->setTag(996);
         _gameLayer->addChild(buzzer1, 5);
-
         buzzer1->setOnDeathCallback([=]() {
             if (_player) {
-                _player->gainSoulOnKill(); // 调用主角加魂
+                _player->gainSoulOnKill();
                 CCLOG("Soul gained from Buzzer 1!");
             }
-            });
+        });
     }
-
     auto buzzer2 = Buzzer::create("buzzer/idle/idle_1.png");
     if (buzzer2)
     {
@@ -186,15 +168,13 @@ bool HelloWorld::init()
         buzzer2->setInitialPosition(buzzer2Pos);
         buzzer2->setTag(995);
         _gameLayer->addChild(buzzer2, 5);
-
         buzzer2->setOnDeathCallback([=]() {
             if (_player) {
-                _player->gainSoulOnKill(); // 调用主角加魂
+                _player->gainSoulOnKill();
                 CCLOG("Soul gained from Buzzer 2!");
             }
-            });
+        });
     }
-    */
 
     //////////////////////////////////////////////////////////////////////
     // 5. 创建主角 (Player)
@@ -207,15 +187,12 @@ bool HelloWorld::init()
 
     if (_player)
     {
-        // 【测试配置】将主角放在 Level 2 最右侧，方便测试 Level 3 切换
-        // Level 2 -> Level 3 切换触发点: X >= 6325
-        // 主角初始位置: X = 6200 (距离切换点 125 像素)
-        _player->setPosition(Vec2(6200, 1300));
+        // 主角初始位置: Level 1 最左端
+        _player->setPosition(Vec2(435, 1300));
         _gameLayer->addChild(_player, 10);
-        CCLOG("========== TEST MODE ==========");
-        CCLOG("Player spawned at Level 2 end: (6200, 1300)");
-        CCLOG("Level 3 trigger point: X >= 6325");
-        CCLOG("Distance to trigger: 125 pixels");
+        CCLOG("========== PLAYER INIT ==========");
+        CCLOG("Player spawned at Level 1 start: (435, 1300)");
+        CCLOG("Level 1 trigger point: X >= 6500");
         CCLOG("==============================");
     }
     else
@@ -417,15 +394,31 @@ void HelloWorld::update(float dt)
             return;
         }
     }
-
-    // Level 2 -> Level 3
+    // Level 2 -> Level 1
     if (_currentLevel == 2 && !_isTransitioning)
     {
         Vec2 playerPos = _player->getPosition();
+        if (playerPos.x <= 100.0f)
+        {
+            CCLOG("Player reached level2 left! Triggering level 1 switch...");
+            switchToLevel1();
+            return;
+        }
         if (playerPos.x >= 6325.0f)
         {
             CCLOG("Player reached level2 end! Triggering level 3 switch...");
             switchToLevel3();
+            return;
+        }
+    }
+    // Level 3 -> Level 2
+    if (_currentLevel == 3 && !_isTransitioning)
+    {
+        Vec2 playerPos = _player->getPosition();
+        if (playerPos.x <= 100.0f)
+        {
+            CCLOG("Player reached level3 left! Triggering level 2 switch...");
+            switchToLevel2FromRight();
             return;
         }
     }
@@ -535,7 +528,9 @@ void HelloWorld::update(float dt)
                     {
                         CCLOG(" Player collided with Enemy!");
                         _player->takeDamage(1, enemy->getPosition(), _groundRects);
-                        enemy->onCollideWithPlayer(_player->getPosition());
+                        // 用主角面朝方向击退小怪
+                        int facing = _player->isFacingRight() ? 1 : -1;
+                        enemy->onCollideWithPlayer(_player->getPosition(), facing);
                     }
                 }
             }
@@ -581,7 +576,8 @@ void HelloWorld::update(float dt)
                     {
                         CCLOG("Player collided with Zombie body!");
                         _player->takeDamage(1, zombie->getPosition(), _groundRects);
-                        zombie->onCollideWithPlayer(_player->getPosition());
+                        int facing = _player->isFacingRight() ? 1 : -1;
+                        zombie->onCollideWithPlayer(_player->getPosition(), facing);
                     }
                 }
             }
@@ -803,7 +799,6 @@ void HelloWorld::update(float dt)
             if (!bossBodyBox.equals(Rect::ZERO))
             {
                 bool isBossHit = false;
-                
                 // 玩家攻击 Boss
                 if (_player->isAttackPressed())
                 {
@@ -813,14 +808,24 @@ void HelloWorld::update(float dt)
                         CCLOG("HIT! Player hit the Boss!");
                         _boss->takeDamage(1);  // 普通攻击
                         isBossHit = true;
-                        
                         // 下劈反弹
                         if (_player->getAttackDir() == -1) {
                             _player->pogoJump();
                         }
+                        // ====== 新增：每三刀回复一格魂，满了不加 ======
+                        static int bossHitCombo = 0;
+                        bossHitCombo++;
+                        if (bossHitCombo >= 3) {
+                            bossHitCombo = 0;
+                            auto stats = _player->getStats();
+                            if (stats && stats->getSoul() < stats->getMaxSoul()) {
+                                _player->gainSoul(1);
+                                CCLOG("Player gained 1 soul from Boss!");
+                            }
+                        }
+                        // =========================================
                     }
                 }
-                
                 // Boss 碰撞玩家（身体）
                 if (!isBossHit)
                 {
@@ -1195,5 +1200,69 @@ void HelloWorld::switchToLevel3()
         CCLOG("========== Level 3 loaded successfully ==========");
         });
 
+    blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
+}
+
+// ========================================
+// 切换到Level1的方法
+// ========================================
+void HelloWorld::switchToLevel1()
+{
+    if (_isTransitioning || _currentLevel == 1) return;
+    _isTransitioning = true;
+    CCLOG("========== Switching to Level 1 ==========");
+    auto blackLayer = LayerColor::create(Color4B::BLACK);
+    blackLayer->setOpacity(0);
+    this->addChild(blackLayer, 999);
+    auto fadeIn = FadeTo::create(0.5f, 255);
+    auto switchMap = CallFunc::create([this]() {
+        _currentLevel = 1;
+        loadMap("maps/level1.tmx");
+        if (_player)
+        {
+            // 切回level1时主角出现在最左端
+            _player->setPosition(Vec2(435, 1300));
+            _player->setVelocityX(0);
+        }
+    });
+    auto delay = DelayTime::create(0.3f);
+    auto fadeOut = FadeTo::create(0.5f, 0);
+    auto cleanup = CallFunc::create([this, blackLayer]() {
+        blackLayer->removeFromParent();
+        _isTransitioning = false;
+        CCLOG("========== Level 1 loaded successfully ==========");
+    });
+    blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
+}
+
+// ========================================
+// 从右侧切换回Level2的方法 (针对Level 3)
+// ========================================
+void HelloWorld::switchToLevel2FromRight()
+{
+    if (_isTransitioning || _currentLevel == 2) return;
+    _isTransitioning = true;
+    CCLOG("========== Switching to Level 2 (from right) ==========");
+    auto blackLayer = LayerColor::create(Color4B::BLACK);
+    blackLayer->setOpacity(0);
+    this->addChild(blackLayer, 999);
+    auto fadeIn = FadeTo::create(0.5f, 255);
+    auto switchMap = CallFunc::create([this]() {
+        _currentLevel = 2;
+        loadMap("maps/level2.tmx");
+        if (_player)
+        {
+            // 切回level2时主角出现在最右端
+            _player->setPosition(Vec2(6200, 1300));
+            _player->setVelocityX(0);
+        }
+    });
+    auto delay = DelayTime::create(0.3f);
+    auto fadeOut = FadeTo::create(0.5f, 0);
+    auto cleanup = CallFunc::create([this, blackLayer]() {
+        blackLayer->removeFromParent();
+        _isTransitioning = false;
+        CCLOG("========== Level 2 loaded successfully (from right) ==========");
+    });
     blackLayer->runAction(Sequence::create(fadeIn, switchMap, delay, fadeOut, cleanup, nullptr));
 }

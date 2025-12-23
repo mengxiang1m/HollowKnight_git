@@ -90,7 +90,9 @@ private:
     // 场景切换方法
     // ========================================
     void loadMap(const std::string& mapPath);  // 加载地图
+    void switchToLevel1();
     void switchToLevel2();
+    void switchToLevel2FromRight();
     void switchToLevel3();
 };
 

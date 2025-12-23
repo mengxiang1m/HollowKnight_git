@@ -107,6 +107,9 @@ public:
     void setOnHealthChanged(const std::function<void(int, int)>& callback);
     void setOnSoulChanged(const std::function<void(int)>& callback);
 
+public:
+    bool isFacingRight() const { return _isFacingRight; }
+
 private:
     // --- 内部物理逻辑 ---
     void updateMovementX(float dt);

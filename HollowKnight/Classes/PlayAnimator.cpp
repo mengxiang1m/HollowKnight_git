@@ -132,7 +132,8 @@ void PlayerAnimator::playAttackEffect(int dir, bool facingRight)
         offset = Vec2(50, -70);
     }
     else { // Horizontal
-        offset = Vec2(facingRight ? 20 : 40, 0);
+        // 保持左右偏移一致，均为50像素
+        offset = Vec2(facingRight ? 50 : -0, 0);
     }
 
     _slashEffectSprite->setPosition(center + offset);

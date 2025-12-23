@@ -1,4 +1,5 @@
 #include "Zombie.h"
+#include "HitEffect.h"
 
 USING_NS_CC;
 
@@ -274,6 +275,11 @@ void Zombie::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
     _health -= damage;
     _isInvincible = true;
     CCLOG("Zombie Hit! HP: %d", _health);
+    // ====== 新增：受击打击感特效 ======
+    float fxSize = std::max(this->getContentSize().width, this->getContentSize().height) * 1.1f;
+    // 向下偏移30像素
+    HitEffect::play(this->getParent(), this->getPosition() + Vec2(0, this->getContentSize().height * 0.5f - 30.0f), fxSize);
+    // ===============================
 
     // 1. 死亡判定
     if (_health <= 0) {
@@ -327,6 +333,17 @@ void Zombie::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
     this->scheduleOnce([this](float) {
         if (_currentState != State::DAMAGED) _velocity.x = 0;
         }, 0.2f, "stop_bounce");
+}
+
+void Zombie::onCollideWithPlayer(const cocos2d::Vec2& playerPos, int playerFacing)
+{
+    if (_currentState == State::DEAD || _currentState == State::DAMAGED) return;
+    // 按主角相对zombie的方向击退
+    float knockbackDirection = (playerPos.x < this->getPositionX()) ? 1.0f : -1.0f;
+    _velocity.x = knockbackDirection * 150.0f;
+    this->scheduleOnce([this](float) {
+        if (_currentState != State::DAMAGED) _velocity.x = 0;
+    }, 0.2f, "stop_bounce");
 }
 
 void Zombie::changeState(State newState)

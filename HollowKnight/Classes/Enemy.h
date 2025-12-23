@@ -35,6 +35,9 @@ public:
     // 碰到主角时的击退反应
     void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
 
+    // 新增重载，支持主角面朝方向
+    void onCollideWithPlayer(const cocos2d::Vec2& playerPos, int playerFacing);
+
     // 【新增】定义回调类型：这是一个“没有参数，也没有返回值”的函数类型
     typedef std::function<void()> DeathCallback;
 
@@ -75,4 +78,4 @@ private:
     cocos2d::Animation* _deathAnimation;
 };
 
-#endif // __ENEMY_H__#pragma once
+#endif // __ENEMY_H__

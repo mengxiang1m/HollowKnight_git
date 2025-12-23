@@ -1,4 +1,5 @@
 #include "Buzzer.h"
+#include "HitEffect.h"
 
 USING_NS_CC;
 
@@ -296,6 +297,10 @@ void Buzzer::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
     _isInvincible = true;
     _health -= damage;
     CCLOG("?? Buzzer took %d damage! Health: %d/%d", damage, _health, _maxHealth);
+    // ====== 新增：受击打击感特效 ======
+    float fxSize = std::max(this->getContentSize().width, this->getContentSize().height) * 1.1f;
+    HitEffect::play(this->getParent(), this->getPosition() + Vec2(0, this->getContentSize().height * 0.5f), fxSize);
+    // ===============================
     {
         changeState(State::DEAD);
 

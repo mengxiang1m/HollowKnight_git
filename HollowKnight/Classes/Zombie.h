@@ -38,6 +38,7 @@ public:
 
     // 碰到主角时的击退反应
     void onCollideWithPlayer(const cocos2d::Vec2& playerPos);
+    void onCollideWithPlayer(const cocos2d::Vec2& playerPos, int playerFacing); // 新增重载
 
     // 定义回调类型
     typedef std::function<void()> DeathCallback;

@@ -1,7 +1,8 @@
 ﻿#include "Player.h"
 #include "PlayerStates.h" // 引入状态类的实现
-#include "config.h"   
+#include "config.h"
 #include "HelloWorldScene.h"
+#include "HitEffect.h"
 
 USING_NS_CC;
 
@@ -232,6 +233,11 @@ void Player::takeDamage(int damage, const cocos2d::Vec2& attackerPos, const std:
     _stats->takeDamage(damage);
     CCLOG("Player took damage! Health: %d", _stats->getHealth());
 
+    // ====== 新增：受击打击感特效 ======
+    float fxSize = std::max(_bodySize.width, _bodySize.height) * 1.1f;
+    HitEffect::play(this->getParent(), this->getPosition() + Vec2(0, _bodySize.height * 0.5f + _bodyOffset.y), fxSize);
+    // ===============================
+
     // 2. 【核心修复】计算正确的击退方向 (远离攻击者)
     float knockbackSpeed = 400.0f;
     float direction = (this->getPositionX() < attackerPos.x) ? -1.0f : 1.0f;
@@ -387,7 +393,12 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
 {
     _isOnGround = false;
     Rect playerRect = getCollisionBox();
-
+    float minPenetration = 1e6f;
+    const cocos2d::Rect* bestPlatform = nullptr;
+    float bestPlatformY = 0;
+    float prevY = this->getPositionY();
+    float curY = this->getPositionY();
+    // 记录修正前的Y坐标
     for (const auto& platform : platforms)
     {
         if (playerRect.intersectsRect(platform))
@@ -401,17 +412,14 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
                 {
                     float tolerance = 40.0f;
                     float overlapY = platform.getMaxY() - playerRect.getMinY();
-
                     if (overlapY > -0.1f && overlapY <= tolerance)
                     {
-                        this->setPositionY(platform.getMaxY() - _bodyOffset.y - 1.0f);
-                        _velocity.y = 0;
-                        _isOnGround = true;
-
-                        // ==========================================
-                        // 记录安全坐标
-                        // ==========================================
-                        _lastSafePosition = this->getPosition();
+                        // 记录最小穿透量的平台
+                        if (overlapY < minPenetration) {
+                            minPenetration = overlapY;
+                            bestPlatform = &platform;
+                            bestPlatformY = platform.getMaxY();
+                        }
                     }
                 }
                 else if (_velocity.y > 0)
@@ -424,6 +432,30 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
                         _velocity.y = 0;
                     }
                 }
+            }
+        }
+    }
+    // 统一修正Y坐标，防止高速下落穿透地板
+    if (bestPlatform) {
+        this->setPositionY(bestPlatformY - _bodyOffset.y - 1.0f);
+        _velocity.y = 0;
+        _isOnGround = true;
+        _lastSafePosition = this->getPosition();
+    }
+    // 【健壮性增强】如果主角一帧内从地面上方穿到下方，强制拉回地面
+    if (!_isOnGround && _velocity.y < 0) {
+        float playerFootY = playerRect.getMinY();
+        for (const auto& platform : platforms) {
+            float platY = platform.getMaxY();
+            float prevFootY = playerFootY - _velocity.y * 0.016f; // 估算上帧脚底Y
+            if (prevFootY >= platY && playerFootY < platY &&
+                playerRect.getMaxX() > platform.getMinX() + 5 && playerRect.getMinX() < platform.getMaxX() - 5) {
+                // 发生穿透，强制拉回
+                this->setPositionY(platY - _bodyOffset.y - 1.0f);
+                _velocity.y = 0;
+                _isOnGround = true;
+                _lastSafePosition = this->getPosition();
+                break;
             }
         }
     }
