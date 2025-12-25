@@ -27,6 +27,7 @@
 
 #include "cocos2d.h"
 #include "Player.h"
+#include "Jar.h"
 
 class HelloWorld : public cocos2d::Scene
 {
@@ -56,8 +57,8 @@ private:
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
     // 罐子列表
-    std::vector<class Jar*> _jars;
-
+   // 【修改后】 只有这一行需要变！
+    cocos2d::Vector<class Jar*> _jars; // <-- 这种会负责保命 (Retain)
     //键盘状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;

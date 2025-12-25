@@ -75,6 +75,10 @@ void PlayerAnimator::loadAllAnimations()
     // 凝聚特效
     loadAnim("effect_focus_loop", Config::Path::EFFECT_FOCUS_LOOP, 13, 0.06f);
     loadAnim("effect_focus_end", Config::Path::EFFECT_FOCUS_END, 2, 0.08f);
+
+    //施法两段动画
+    loadAnim("cast_antic", Config::Path::PLAYER_CAST_ANTIC, 3, 0.05f);
+    loadAnim("cast_release", Config::Path::PLAYER_CAST_RELEASE, 6, 0.06f);
 }
 
 void PlayerAnimator::preloadSounds()

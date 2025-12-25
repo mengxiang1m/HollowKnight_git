@@ -278,6 +278,10 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_A:
             _player->setFocusInput(true);
             break;
+
+        case EventKeyboard::KeyCode::KEY_S:
+            _player->setCastInput(true);
+            break;
         }
         };
 
@@ -318,6 +322,10 @@ bool HelloWorld::init()
         case EventKeyboard::KeyCode::KEY_X:
             _player->setAttackPressed(false);
             break;
+
+        case EventKeyboard::KeyCode::KEY_S:
+            _player->setCastInput(false);
+            break;
         }
         };
 
@@ -345,20 +353,24 @@ bool HelloWorld::init()
     //////////////////////////////////////////////////////////////////////
     // 9. 调试 UI
     //////////////////////////////////////////////////////////////////////
-    _coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
-    _coordLabel->setColor(Color3B::YELLOW);
-    _coordLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 50));
-    _coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
-    this->addChild(_coordLabel, 200);
+    //_coordLabel = Label::createWithSystemFont("Player: (0, 0)", "Arial", 24);
+    //_coordLabel->setColor(Color3B::YELLOW);
+    //_coordLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 50));
+    //_coordLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    //this->addChild(_coordLabel, 200);
 
-    _spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
-    _spikeDebugLabel->setColor(Color3B::RED);
-    _spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
-    _spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
-    this->addChild(_spikeDebugLabel, 200);
+    //_spikeDebugLabel = Label::createWithSystemFont("Spike: Loading...", "Arial", 20);
+    //_spikeDebugLabel->setColor(Color3B::RED);
+    //_spikeDebugLabel->setPosition(Vec2(visibleSize.width / 2, visibleSize.height - 100));
+    //_spikeDebugLabel->setAnchorPoint(Vec2(0.5f, 1.0f));
+    //this->addChild(_spikeDebugLabel, 200);
 
-    _debugDrawNode = DrawNode::create();
-    this->addChild(_debugDrawNode, 150);
+    //_debugDrawNode = DrawNode::create();
+    //this->addChild(_debugDrawNode, 150);
+
+    _coordLabel = nullptr;
+    _spikeDebugLabel = nullptr;
+    _debugDrawNode = nullptr;
 
     this->scheduleUpdate();
 
@@ -392,7 +404,7 @@ void HelloWorld::update(float dt)
     // ========================================
     // 0. 检测玩家位置，触发场景切换 (Level 1 -> 2)
     // ========================================
-    if (_currentLevel == 1 && !_isTransitioning)
+   if (_currentLevel == 1 && !_isTransitioning)
     {
         Vec2 playerPos = _player->getPosition();
         if (playerPos.x >= 6500.0f)
@@ -406,34 +418,47 @@ void HelloWorld::update(float dt)
     // ========================================
     // 1. 更新玩家位置 (包含 Jar 平台逻辑)
     // ========================================
-    std::vector<Rect> dynamicGroundRects = _groundRects;  // 复制原始地面碰撞
+   if (_jars.empty())
+   {
+       _player->update(dt, _groundRects); // ⚡️ 零拷贝，极速！
+   }
+   else
+   {
+       // 只有 Level 2 有罐子时，才不得不复制一份
+       std::vector<Rect> dynamicGroundRects = _groundRects;
 
-    // 将所有未被摧毁的罐子顶部平台添加到碰撞检测中
-    for (auto jar : _jars)
-    {
-        if (jar && !jar->isDestroyed())
-        {
-            Rect topPlatform = jar->getTopPlatformBox();
-            if (!topPlatform.equals(Rect::ZERO))
-            {
-                dynamicGroundRects.push_back(topPlatform);
-            }
-        }
-    }
+       // 倒序遍历清理坏罐子
+       for (int i = _jars.size() - 1; i >= 0; i--)
+       {
+           auto jar = _jars.at(i);
 
-    _player->update(dt, dynamicGroundRects);  // 使用包含罐子平台的碰撞列表
+           // 检查指针有效性
+           if (!jar || jar->getReferenceCount() == 0) {
+               _jars.erase(i); continue;
+           }
+           if (jar->isDestroyed()) {
+               _jars.erase(i); continue;
+           }
 
+           // 添加罐子顶部平台
+           Rect topPlatform = jar->getTopPlatformBox();
+           if (!topPlatform.equals(Rect::ZERO)) {
+               dynamicGroundRects.push_back(topPlatform);
+           }
+       }
+       _player->update(dt, dynamicGroundRects);
+   }
     // ========================================
     // 2. 获取玩家位置并更新坐标显示
     // ========================================
-    Vec2 playerPos = _player->getPosition();
+   Vec2 playerPos = _player->getPosition();
 
-    if (_coordLabel)
+   /* if (_coordLabel)
     {
         char coordText[100];
         sprintf(coordText, "Player: (%.0f, %.0f)", playerPos.x, playerPos.y);
         _coordLabel->setString(coordText);
-    }
+    }*/
 
     // ========================================
     // 3. 相机立即跟随玩家
@@ -566,7 +591,7 @@ void HelloWorld::update(float dt)
     {
         spike->update(dt, playerPos, _groundRects);
 
-        if (_spikeDebugLabel)
+       /* if (_spikeDebugLabel)
         {
             char debugText[200];
             int state = (int)spike->getHitbox().equals(Rect::ZERO) ? -1 : 0;
@@ -574,7 +599,7 @@ void HelloWorld::update(float dt)
                 spike->getPosition().x, spike->getPosition().y,
                 state, spike->isVisible());
             _spikeDebugLabel->setString(debugText);
-        }
+        }*/
 
         Rect spikeBox = spike->getHitbox();
         if (!spikeBox.equals(Rect::ZERO))
@@ -590,13 +615,13 @@ void HelloWorld::update(float dt)
             }
         }
     }
-    else
+   /* else
     {
         if (_spikeDebugLabel) {
             _spikeDebugLabel->setString("Spike: NOT FOUND (tag 997)");
             _spikeDebugLabel->setColor(Color3B::RED);
         }
-    }
+    }*/
 	
     // ========================================
     // 6. Buzzer 飞行敌人检测
@@ -738,6 +763,41 @@ void HelloWorld::update(float dt)
         }
         it++;
     }
+
+    // ========================================
+    // 8. 复仇之魂拾取逻辑 (Tag 987)
+    // ========================================
+    auto skillItemNode = _gameLayer->getChildByTag(987);
+    if (skillItemNode)
+    {
+        // 安全转换
+        auto skillItem = dynamic_cast<Fireball*>(skillItemNode);
+        if (skillItem && _player)
+        {
+            Rect playerBox = _player->getCollisionBox();
+            Rect itemBox = skillItem->getBoundingBox();
+
+            if (playerBox.intersectsRect(itemBox))
+            {
+                CCLOG("INTERACTION: Acquired Vengeful Spirit!");
+
+                // 1. 解锁技能
+                _player->unlockFireball();
+
+                // 2. 播放特效 (变大消失)
+                skillItem->stopAllActions();
+                skillItem->runAction(Sequence::create(
+                    ScaleTo::create(0.2f, 2.0f),
+                    FadeOut::create(0.2f),
+                    CallFunc::create([skillItem]() { skillItem->removeFromParent(); }),
+                    nullptr
+                ));
+
+                // 3. 立即去标签，防止重复触发
+                skillItem->setTag(-1);
+            }
+        }
+    }
 }
 
 void HelloWorld::menuCloseCallback(Ref* pSender)
@@ -796,14 +856,14 @@ void HelloWorld::loadMap(const std::string& mapPath)
     this->parseMapCollisions(map);
 
     // 6. 绘制调试碰撞框
-    auto drawNode = DrawNode::create();
+    /*auto drawNode = DrawNode::create();
     drawNode->setTag(1000);
     _gameLayer->addChild(drawNode, 999);
 
     for (const auto& rect : _groundRects)
     {
         drawNode->drawRect(rect.origin, rect.origin + rect.size, Color4F::RED);
-    }
+    }*/
 
     CCLOG("========== Map Loaded: %s ==========", mapPath.c_str());
 
@@ -825,12 +885,12 @@ void HelloWorld::loadMap(const std::string& mapPath)
             {
                 jar->setTag(990 - i);
                 _gameLayer->addChild(jar, 5);
-                _jars.push_back(jar);
+                _jars.pushBack(jar);
             }
         }
 
         // 创建 Fireball
-        auto fireball = Fireball::create("fireball/fireball_1.png");
+        auto fireball = Fireball::create("fireball/idle/fireball_1.png");
         if (fireball)
         {
             fireball->setPosition(Vec2(5529.0f, 650.0f));

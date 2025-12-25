@@ -2,6 +2,7 @@
 #include "PlayerStates.h" // 引入状态类的实现
 #include "config.h"   
 #include "HelloWorldScene.h"
+#include "Fireball.h" 
 
 USING_NS_CC;
 
@@ -77,6 +78,9 @@ bool Player::init()
     _isInvincible = false;
     _isFacingRight = false;
     _isOnGround = false;
+    _attackCooldownTimer = 0.0f;
+    _hasFireballSkill = false; // 初始不会
+
     // 初始化安全位置
     _lastSafePosition = this->getPosition();
     if (_lastSafePosition.equals(Vec2::ZERO)) {
@@ -91,10 +95,13 @@ bool Player::init()
     _isJumpingAction = false;
     _isJumpPressed = false;
     _isFocusInputPressed = false;
+    _jumpInputReleased = true; 
+    _isCastPressed = false;
+    _castInputReleased = true; 
 
-    // 5. 加载所有动画资源 (保留 Animator 组件)
+    // 5. 加载所有动画资源 
     _animator = new PlayerAnimator();
-    _animator->init(this); // 把自己传进去，让 Animator 把特效贴在我身上
+    _animator->init(this); 
 
     // 6. 调试绘图
     _debugNode = DrawNode::create();
@@ -112,13 +119,29 @@ bool Player::init()
 
 void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
 {
-    // 1. 【逻辑层】委托给状态机处理
+    // A. 攻击冷却倒计时
+    if (_attackCooldownTimer > 0) {
+        _attackCooldownTimer -= dt;
+    }
+
+    // B. 跳跃键重置检测
+    // 只有当玩家【松开】跳跃键时，才允许下一次跳跃
+    if (!_isJumpPressed) {
+        _jumpInputReleased = true;
+    }
+
+    // 施法键重置检测
+    if (!_isCastPressed) {
+        _castInputReleased = true;
+    }
+
+    // 【逻辑层】委托给状态机处理
     if (_state)
     {
         _state->update(this, dt);
     }
 
-    // 2. 【物理层】执行位移和碰撞
+    // 【物理层】执行位移和碰撞
     updateMovementX(dt);
     updateCollisionX(platforms);
 
@@ -232,11 +255,11 @@ void Player::takeDamage(int damage, const cocos2d::Vec2& attackerPos, const std:
     _stats->takeDamage(damage);
     CCLOG("Player took damage! Health: %d", _stats->getHealth());
 
-    // 2. 【核心修复】计算正确的击退方向 (远离攻击者)
+    // 3. 计算正确的击退方向 (远离攻击者)
     float knockbackSpeed = 400.0f;
     float direction = (this->getPositionX() < attackerPos.x) ? -1.0f : 1.0f;
 
-    // 3. UI 更新
+    // 4. UI 更新
     if (_onHealthChanged) {
         _onHealthChanged(this->getHealth(), this->getMaxHealth());
     }
@@ -277,6 +300,56 @@ void Player::pogoJump()
     _isOnGround = false;
 }
 
+// 实现消耗灵魂
+bool Player::consumeSoul(int amount)
+{
+    if (!_stats) return false;
+    if (getHealth() >= amount) {
+        gainSoul(-amount); // 扣除灵魂
+        return true;
+    }
+    return false;
+}
+
+bool Player::canCastSpell()
+{
+    // 1. 没解锁不能放
+    if (!_hasFireballSkill) return false;
+
+    if (_stats->getSoul() < Config::Skill::FIREBALL_COST) return false;
+
+    return true;
+}
+
+void Player::executeSpell()
+{
+    // 1. 扣蓝
+    consumeSoul(Config::Skill::FIREBALL_COST);
+
+    // 2. 生成火球
+    auto fireball = Fireball::create("fireball/idle/fireball_1.png");
+    if (fireball)
+    {
+        // 计算位置：在主角前方 50 像素，高度微调
+        float dir = _isFacingRight? 1.0f : -1.0f;
+        Vec2 spawnPos = this->getPosition() + Vec2(dir * 50.0f, 80.0f);
+
+        fireball->setPosition(spawnPos);
+
+        // B. 设置方向和速度
+        fireball->shoot(Config::Skill::FIREBALL_SPEED, (int)dir);
+        fireball->setTag(5000); // 统一 Tag
+
+        // C. 添加到场景 (核心技巧：Player 的父节点就是 GameLayer)
+        if (this->getParent()) {
+            this->getParent()->addChild(fireball, 10);
+        }
+
+        // E. 给主角一个反冲力 (Hollow Knight 细节：施法会有后坐力)
+        this->setVelocityX(dir * -200.0f);
+    }
+}
+
 // =================================================================
 //  5. 动画系统
 // =================================================================
@@ -295,7 +368,7 @@ void Player::setAttackPressed(bool pressed) { _isAttackPressed = pressed; }
 void Player::setJumpPressed(bool pressed) { _isJumpPressed = pressed; }
 void Player::setAttackDir(int dir) { _currentAttackDir = dir; }
 void Player::setFocusInput(bool pressed) { _isFocusInputPressed = pressed; }
-
+void Player::setCastInput(bool pressed){    _isCastPressed = pressed;}
 // =================================================================
 //  7. 物理引擎 (使用 Config)
 // =================================================================
@@ -335,7 +408,7 @@ void Player::updateMovementY(float dt)
     // ============================================================
     // 防Bug检测：如果掉出地图，拉回
     // ============================================================
-    if (this->getPositionY() < -300.0f)
+    if (this->getPositionY() < -50.0f)
     {
         CCLOG("[Player] BUG DETECTED: Fell out of map! Teleporting to safety.");
 
@@ -432,6 +505,37 @@ void Player::updateCollisionY(const std::vector<cocos2d::Rect>& platforms)
 // =================================================================
 //  8. 辅助函数
 // =================================================================
+void Player::startAttackCooldown()
+{
+    _attackCooldownTimer = 0.25f+6*Config::Player::ATTACK_COOLDOWN;
+}
+
+bool Player::isAttackReady() const
+{
+    return _attackCooldownTimer <= 0.0f;
+}
+
+bool Player::isJumpReady() const
+{
+    return _jumpInputReleased;
+}
+
+void Player::consumeJumpInput()
+{
+    // 锁死跳跃，直到下次松开按键
+    _jumpInputReleased = false;
+}
+
+bool Player::isCastReady() const
+{
+    return _castInputReleased;
+}
+
+void Player::consumeCastInput()
+{
+    _castInputReleased = false; // 锁死，直到下次松手
+}
+
 cocos2d::Rect Player::getCollisionBox() const
 {
     Vec2 worldPos = this->getPosition();
@@ -531,7 +635,6 @@ void Player::drawDebugRects()
     }
 }
 
-// 1. 修复 LNK2019 报错：canFocus 未实现
 bool Player::canFocus() const
 {
     // 安全检查，防止 stats 还没初始化就调用崩溃
