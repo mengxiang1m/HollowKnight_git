@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-down" width="149" height="65" tilewidth="16" tileheight="16" nextobjectid="5">
- <imagelayer>
-  <image source="GameAsset/fight.png" width="2389" height="1041"/>
- </imagelayer>
+ <tileset firstgid="1" name="h" tilewidth="128" tileheight="79" tilecount="1" columns="0">
+  <grid orientation="orthogonal" width="1" height="1"/>
+  <tile id="0">
+   <image width="128" height="79" source="GameAsset/floor_FG_rock_04_0003_03.png"/>
+  </tile>
+ </tileset>
  <layer name="dummy_layer" width="149" height="65">
   <data encoding="base64" compression="zlib">
    eJztwYEAAAAAw6D5U1/hAFUBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwGeXVAAB
