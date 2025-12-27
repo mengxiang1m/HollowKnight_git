@@ -34,16 +34,19 @@ bool Zombie::init()
     _patrolRightBound = 300.0f;
     _detectionRange = 400.0f;
 
-    // 【来自 File 2】追逐范围限制 (全屏宽度)
+    // 追逐范围限制 (全屏宽度)
     auto visibleSize = Director::getInstance()->getVisibleSize();
     _maxChaseRange = visibleSize.width * 3.0f;
     _spawnPosition = Vec2::ZERO; // 稍后更新
 
-    // 【来自 File 1】物理参数初始化
+    // 物理参数初始化
     _velocity = Vec2::ZERO;
     _isOnGround = false;
     _gravity = 2000.0f;
     _maxFallSpeed = -1500.0f;
+
+    // 设置梦之钉心声 (GameEntity 提供的功能)
+    this->setDreamThought("...Brains...Hungry...");
 
     loadAnimations();
     playWalkAnimation();

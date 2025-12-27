@@ -154,3 +154,16 @@ private:
     float _timer;
     bool _hasSpawned; // 标记是否已经生成了火球
 };
+
+// 梦之钉状态
+class StateDreamNail : public PlayerState
+{
+public:
+    void enter(Player* player) override;
+    void update(Player* player, float dt) override;
+    void exit(Player* player) override;
+
+private:
+    float _timer;
+    bool _hasSlashed;
+};

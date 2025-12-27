@@ -89,6 +89,7 @@ void StateIdle::update(Player* player, float dt)
         return;
     }
 
+	// 6. 检测施法输入
     if (player->isCastPressed() && player->canCastSpell() && player->isCastReady())
     {
         // 消耗这次按键机会 (防止按住不放连发)
@@ -97,6 +98,14 @@ void StateIdle::update(Player* player, float dt)
         player->changeState(new StateCast());
         return;
     }
+
+   // 7. 检测梦之钉输入
+    if (player->isDreamNailPressed())
+    {
+        player->changeState(new StateDreamNail());
+        return;
+    }
+
 }
 
 void StateIdle::exit(Player* player)
@@ -707,5 +716,79 @@ void StateCast::update(Player* player, float dt)
 
 void StateCast::exit(Player* player)
 {
-    // 恢复重力接管 (其实切到 Idle/Fall 自然就恢复了)
+}
+
+// ============================================================
+// StateDreamNail (梦之钉状态)
+// ============================================================
+void StateDreamNail::enter(Player* player)
+{
+    // 1. 停止移动
+    player->setVelocityX(0);
+
+    // 2. 播放蓄力动画 (在Animator里设为循环)
+    player->playAnimation("dream_nail_charge");
+
+    // 3. 初始化
+    _timer = 0.0f;
+    _hasSlashed = false;
+    player->setDreamNailActive(false); // 判定框关闭
+
+    // 4. 音效 (可选)
+    // SimpleAudioEngine::getInstance()->playEffect("audio/dream_nail_charge.wav");
+}
+
+void StateDreamNail::update(Player* player, float dt)
+{
+    _timer += dt;
+
+    // --- 阶段一：蓄力 ---
+    if (!_hasSlashed)
+    {
+        // 如果中途松开按键，且还没挥出去 -> 取消
+        if (!player->isDreamNailPressed())
+        {
+            player->changeState(new StateIdle());
+            return;
+        }
+
+        // 蓄力时间到 -> 自动挥砍
+        if (_timer >= Config::Player::DREAM_NAIL_CHARGE_TIME)
+        {
+            _hasSlashed = true;
+            _timer = 0; // 重置计时器给挥砍动画用
+
+            // 播放挥砍
+            player->playAnimation("dream_nail_slash");
+
+            // 开启碰撞判定 (只在 HelloWorldScene update 里生效)
+            player->setDreamNailActive(true);
+
+            // 给一个小小的位移补偿 (向前一步)
+            float dir = player->isFacingRight() ? 1.0f : -1.0f;
+            player->setVelocityX(dir * 50.0f);
+
+            // 挥砍音效
+            // SimpleAudioEngine::getInstance()->playEffect("audio/dream_nail_slash.wav");
+        }
+    }
+    // --- 阶段二：挥砍后摇 ---
+    else
+    {
+        // 挥砍动画大约 0.4秒 (10帧 * 0.04s)
+        if (_timer > 0.6f)
+        {
+            player->setDreamNailActive(false); // 关闭判定
+
+            if (player->isOnGround())
+                player->changeState(new StateIdle());
+            else
+                player->changeState(new StateFall());
+        }
+    }
+}
+
+void StateDreamNail::exit(Player* player)
+{
+    player->setDreamNailActive(false); // 确保退出状态时判定关闭
 }

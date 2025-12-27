@@ -69,6 +69,10 @@ namespace Config {
 
         // 战斗参数
         const float ATTACK_COOLDOWN = 0.04f;
+
+        // 梦之钉配置
+        const float DREAM_NAIL_CHARGE_TIME = 0.3f; // 蓄力需要多久 (秒)
+        const float DREAM_NAIL_RANGE = 200.0f;     // 攻击距离 (比普通攻击远)
     }
 
     namespace Path {
@@ -94,17 +98,23 @@ namespace Config {
         static const char* PLAYER_CAST_RELEASE = "knight/fireballCast/fireballCast_%d.png";        static const char* PLAYER_ANTIC = "knight/fireballAntic/fireballAntic_%d.png";
         static const char* EFFECT_FOCUS_LOOP = "knight/focusGet/focusEffect/focusEffect_%d.png";
         static const char* EFFECT_FOCUS_END = "knight/focusEnd/focusEffectEnd/focusEffectEnd_%d.png";
-   
+        static const char* DREAM_NAIL_CHARGE = "Knight/DNcharge/DNcharge_%d.png";
+        static const char* DREAM_NAIL_SLASH = "Knight/DNslash/DNslash_%d.png";
+
         // 火球飞行特效
         static const std::string FIREBALL_IDLE = "fireball/idle/fireball_%d.png";
         static const std::string FIREBALL_FLY = "fireball/fly/fly_%d.png";
+   
+		// 梦之钉对话框
+        static const std::string DREAM_DIALOGUE_UP = "dialogue/dreamUp/dreamUp_%d.png";
+        static const std::string DREAM_DIALOGUE_DOWN = "dialogue/dreamDown/dreamDown_%d.png";
     }
 
     // 音频路径配置 
     namespace Audio {
         // 背景音乐
         static const char* BGM_DIRTMOUTH = "audio/Royal_HollowKnight_Theme.mp3"; 
-
+        static const char* BGM_BOSS = "audio/BossBattle.mp3";
         // 主角动作
         static const char* HERO_JUMP = "audio/hero_jump.mp3";
         static const char* HERO_LAND_SOFT = "audio/hero_land_soft.mp3";

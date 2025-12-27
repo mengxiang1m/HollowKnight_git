@@ -69,7 +69,6 @@ public:
     void executeHeal(); // 执行回血
     bool canFocus() const; // 是否满足凝聚条件
 
-
     // 魂量操作 (转发给 Stats)
     void gainSoul(int amount);
     void gainSoulOnKill();
@@ -77,7 +76,7 @@ public:
     // 数据获取 (直接从 Stats 组件读取)
     int getHealth() const { return _stats ? _stats->getHealth() : 0; }
     int getMaxHealth() const { return _stats ? _stats->getMaxHealth() : 0; }
-
+	int getSoul()const { return _stats ? _stats->getSoul() : 0; }
     PlayerStats* getStats() const { return _stats; }
 
     float getVelocityX();
@@ -118,6 +117,14 @@ public:
 
     // 施法防连发锁（和跳跃锁一样，松开才能再次施法）
     void consumeCastInput();
+
+    void setDreamNailInput(bool pressed);
+    bool isDreamNailPressed() const { return _isDreamNailPressed; }
+
+    bool isDreamNailActive() const { return _isDreamNailActive; }
+    void setDreamNailActive(bool active) { _isDreamNailActive = active; }
+
+    cocos2d::Rect getDreamNailHitbox() const;
     // ==========================================
     // 5. 辅助与调试 (Helpers & Debug)
     // ==========================================
@@ -183,6 +190,9 @@ private:
 
     bool _isCastPressed;
     bool _castInputReleased; // 用于防连发
+
+    bool _isDreamNailPressed = false;
+    bool _isDreamNailActive = false;
 
     // --- 调试 ---
     cocos2d::DrawNode* _debugNode = nullptr;

@@ -32,6 +32,8 @@ bool Enemy::init()
     _patrolLeftBound = 0.0f;
     _patrolRightBound = 300.0f;
 
+    this->setDreamThought("...Duty... ...King...");
+
     // 加载动画
     loadAnimations();
 
@@ -187,7 +189,7 @@ void Enemy::takeDamage(int damage, const cocos2d::Vec2& attackerPos)
     auto easeOut = EaseOut::create(knockback, 2.0f); // 缓动效果
     this->runAction(easeOut);
 
-	// 【修复】设置无敌持续时间
+	// 设置无敌持续时间
     this->scheduleOnce([this](float dt) {
         _isInvincible = false;
         }, 0.2f, "invincible_cooldown");

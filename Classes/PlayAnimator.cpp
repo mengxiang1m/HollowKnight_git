@@ -79,6 +79,10 @@ void PlayerAnimator::loadAllAnimations()
     //施法两段动画
     loadAnim("cast_antic", Config::Path::PLAYER_CAST_ANTIC, 3, 0.05f);
     loadAnim("cast_release", Config::Path::PLAYER_CAST_RELEASE, 6, 0.06f);
+
+	// 梦之钉      
+    loadAnim("dream_nail_charge", Config::Path::DREAM_NAIL_CHARGE, 7, 0.1f);
+    loadAnim("dream_nail_slash", Config::Path::DREAM_NAIL_SLASH, 15, 0.04f);
 }
 
 void PlayerAnimator::preloadSounds()
@@ -128,7 +132,7 @@ void PlayerAnimator::playAnimation(const std::string& animName)
     // 判断是循环播放还是单次播放
     if (animName == "idle" || animName == "run" || 
         animName == "focus_loop"||animName=="jump"||
-        animName=="fall")
+        animName=="fall" || animName == "dream_nail_charge")
     {
         action = RepeatForever::create(Animate::create(anim));
     }

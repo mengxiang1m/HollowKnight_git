@@ -304,7 +304,7 @@ void Player::pogoJump()
 bool Player::consumeSoul(int amount)
 {
     if (!_stats) return false;
-    if (getHealth() >= amount) {
+    if (getSoul() >= amount) {
         gainSoul(-amount); // 扣除灵魂
         return true;
     }
@@ -316,7 +316,7 @@ bool Player::canCastSpell()
     // 1. 没解锁不能放
     if (!_hasFireballSkill) return false;
 
-    if (_stats->getSoul() < Config::Skill::FIREBALL_COST) return false;
+    if (getSoul() < Config::Skill::FIREBALL_COST) return false;
 
     return true;
 }
@@ -368,7 +368,8 @@ void Player::setAttackPressed(bool pressed) { _isAttackPressed = pressed; }
 void Player::setJumpPressed(bool pressed) { _isJumpPressed = pressed; }
 void Player::setAttackDir(int dir) { _currentAttackDir = dir; }
 void Player::setFocusInput(bool pressed) { _isFocusInputPressed = pressed; }
-void Player::setCastInput(bool pressed){    _isCastPressed = pressed;}
+void Player::setCastInput(bool pressed){    _isCastPressed = pressed; }
+void Player::setDreamNailInput(bool pressed){   _isDreamNailPressed = pressed; }
 // =================================================================
 //  7. 物理引擎 (使用 Config)
 // =================================================================
@@ -588,6 +589,15 @@ cocos2d::Rect Player::getAttackHitbox() const
 
         return Rect(startX, startY, attackRange, attackHeight);
     }
+}
+
+cocos2d::Rect Player::getDreamNailHitbox() const
+{
+    Vec2 pos = this->getPosition();
+    float range = Config::Player::DREAM_NAIL_RANGE;
+    float h = 80.0f;
+    float startX = _isFacingRight ? pos.x : (pos.x - range);
+    return Rect(startX, pos.y + 20, range, h);
 }
 
 void Player::drawDebugRects()

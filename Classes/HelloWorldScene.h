@@ -28,6 +28,7 @@
 #include "cocos2d.h"
 #include "Player.h"
 #include "Jar.h"
+#include "GameEntity.h"
 
 class HelloWorld : public cocos2d::Scene
 {
@@ -44,6 +45,7 @@ public:
     // 这是默认的关闭按钮回调，用于退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
+
     // 这一行宏是 cocos 必须的    
     CREATE_FUNC(HelloWorld);
 
@@ -57,8 +59,16 @@ private:
     void parseMapCollisions(cocos2d::TMXTiledMap* map);
 
     // 罐子列表
-   // 【修改后】 只有这一行需要变！
     cocos2d::Vector<class Jar*> _jars; // <-- 这种会负责保命 (Retain)
+   
+    // Boss 指针
+    class Boss* _boss;
+    bool _bossTriggered;  // Boss 是否已经触发
+
+    // Boss 逻辑分离函数
+    void updateBossInteraction(float dt); // 处理 Boss 本体、触发、玩家攻击 Boss
+    void updateBossProjectiles(float dt); // 处理 FKFireball 和 FKShockwave
+
     //键盘状态标志位
     bool _isLeftPressed = false;
     bool _isRightPressed = false;
@@ -87,7 +97,19 @@ private:
     // 场景切换方法
     // ========================================
     void loadMap(const std::string& mapPath);  // 加载地图
+    void switchToLevel1();
     void switchToLevel2();
+    void switchToLevel2FromRight();
+    void switchToLevel3();
+
+    // ========================================
+    // 暂停系统相关变量与函数
+    // ========================================
+    bool _isGamePaused;           // 游戏是否暂停
+    cocos2d::Layer* _pauseLayer;  // 暂停菜单层
+
+    void showPauseMenu();         // 显示暂停菜单
+    void hidePauseMenu();         // 隐藏暂停菜单 (继续游戏)
 };
 
 #endif // __HELLOWORLD_SCENE_H__

@@ -8,10 +8,10 @@ Buzzer* Buzzer::create(const std::string& filename)
     if (buzzer && buzzer->initWithFile(filename) && buzzer->init())
     {
         buzzer->autorelease();
-        CCLOG("? [Buzzer::create] Succeeded with file: %s", filename.c_str());
+        CCLOG("[Buzzer::create] Succeeded with file: %s", filename.c_str());
         return buzzer;
     }
-    CCLOG("? [Buzzer::create] FAILED with file: %s", filename.c_str());
+    CCLOG("[Buzzer::create] FAILED with file : % s", filename.c_str());
     CC_SAFE_DELETE(buzzer);
     return nullptr;
 }
@@ -36,7 +36,10 @@ bool Buzzer::init()
     loadAnimations();
     playIdleAnimation();
 
-    CCLOG("? [Buzzer::init] Buzzer initialized successfully!");
+    // 设置梦之钉心声 (这是 GameEntity 提供的功能)
+    this->setDreamThought("...Kill...Crush...");
+
+    CCLOG(" [Buzzer::init] Buzzer initialized successfully!");
 
     return true;
 }
