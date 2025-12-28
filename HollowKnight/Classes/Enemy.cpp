@@ -5,15 +5,23 @@ USING_NS_CC;
 Enemy* Enemy::create(const std::string& filename)
 {
     Enemy* enemy = new (std::nothrow) Enemy();
-    if (enemy && enemy->initWithFile(filename) && enemy->init())
-    {
-        enemy->autorelease();
-        CCLOG(" [Enemy::create] Succeeded with file: %s", filename.c_str());
-        return enemy;
+    if (!enemy) {
+        CCLOG("[Enemy::create] Memory allocation failed for Enemy!");
+        return nullptr;
     }
-    CCLOG("[Enemy::create] FAILED with file: %s", filename.c_str());
-    CC_SAFE_DELETE(enemy);
-    return nullptr;
+    if (!enemy->initWithFile(filename)) {
+        CCLOG("[Enemy::create] initWithFile FAILED with file: %s", filename.c_str());
+        CC_SAFE_DELETE(enemy);
+        return nullptr;
+    }
+    if (!enemy->init()) {
+        CCLOG("[Enemy::create] init() FAILED after initWithFile for file: %s", filename.c_str());
+        CC_SAFE_DELETE(enemy);
+        return nullptr;
+    }
+    enemy->autorelease();
+    CCLOG(" [Enemy::create] Succeeded with file: %s", filename.c_str());
+    return enemy;
 }
 
 bool Enemy::init()
@@ -52,11 +60,10 @@ bool Enemy::init()
 void Enemy::loadAnimations()
 {
     Vector<SpriteFrame*> walkFrames;
-    
+    bool anyFrameFailed = false;
     for (int i = 1; i <= 4; i++)
     {
         std::string frameName = StringUtils::format("enemies/enemy_walk_%d.png", i);
-        
         auto testSprite = Sprite::create(frameName);
         if (testSprite)
         {
@@ -67,6 +74,7 @@ void Enemy::loadAnimations()
         else
         {
             CCLOG("   Failed to load frame: %s", frameName.c_str());
+            anyFrameFailed = true;
         }
     }
 
@@ -75,10 +83,13 @@ void Enemy::loadAnimations()
         _walkAnimation = Animation::createWithSpriteFrames(walkFrames, 0.15f);
         _walkAnimation->retain();
         CCLOG(" Walk animation created with %d frames", (int)walkFrames.size());
+        if (anyFrameFailed) {
+            CCLOG(" [Enemy::loadAnimations] Some frames failed to load, animation may be incomplete.");
+        }
     }
     else
     {
-        CCLOG(" No frames loaded, animation will not play!");
+        CCLOG(" [Enemy::loadAnimations] No frames loaded, animation will not play!");
         _walkAnimation = nullptr;
     }
 
@@ -201,19 +212,23 @@ void Enemy::changeState(State newState)
 {
     if (_currentState == newState)
     {
+        CCLOG("[Enemy::changeState] State unchanged: %d", (int)newState);
         return;
     }
 
     _currentState = newState;
+    CCLOG("[Enemy::changeState] State changed to: %d", (int)newState);
 
     switch (_currentState)
     {
     case State::PATROL:
         playWalkAnimation();
         break;
-
     case State::DEAD:
         playDeathAnimation();
+        break;
+    default:
+        CCLOG("[Enemy::changeState] Unknown state: %d", (int)_currentState);
         break;
     }
 }
@@ -271,6 +286,7 @@ void Enemy::onCollideWithPlayer(const cocos2d::Vec2& playerPos)
 
 Enemy::~Enemy()
 {
+    CCLOG("[Enemy::~Enemy] Destructor called. Releasing animations.");
     CC_SAFE_RELEASE(_walkAnimation);
     CC_SAFE_RELEASE(_deathAnimation);
 }

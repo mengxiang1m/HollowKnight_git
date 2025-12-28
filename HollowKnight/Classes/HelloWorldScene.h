@@ -45,6 +45,7 @@ public:
     // 这是默认的关闭按钮回调，用于退出游戏
     void menuCloseCallback(cocos2d::Ref* pSender);
 
+    void onPlayerDeath(); // 声明主角死亡重生方法
 
     // 这一行宏是 cocos 必须的    
     CREATE_FUNC(HelloWorld);

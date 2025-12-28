@@ -202,6 +202,8 @@ private:
     // --- 回调函数存储 ---
     std::function<void(int, int)> _onHealthChanged;
     std::function<void(int)> _onSoulChanged;
+
+    std::vector<cocos2d::Rect> _lastGroundRects; // 记录最近一次地面碰撞数据
 };
 
 #endif // __PLAYER_H__

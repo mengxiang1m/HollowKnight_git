@@ -619,16 +619,19 @@ void StateDead::enter(Player* player)
 
     player->playAnimation("death");
 
+    // 进入死亡状态时，调用场景的重生逻辑
+    auto runningScene = Director::getInstance()->getRunningScene();
+    if (auto helloWorld = dynamic_cast<HelloWorld*>(runningScene)) {
+        helloWorld->onPlayerDeath();
+    }
+
     auto restartSeq = Sequence::create(
-        DelayTime::create(3.0f),
+        DelayTime::create(1.0f),
         CallFunc::create([]() {
-            Director::getInstance()->replaceScene(TransitionFade::create(1.0f, HelloWorld::createScene()));
-            }),
+            // 不再切换场景，直接重生
+        }),
         nullptr
     );
-
-    // 使用 Scene 运行动作更安全
-    auto runningScene = Director::getInstance()->getRunningScene();
     if (runningScene) runningScene->runAction(restartSeq);
 }
 

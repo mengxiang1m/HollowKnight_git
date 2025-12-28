@@ -120,6 +120,9 @@ bool Player::init()
 
 void Player::update(float dt, const std::vector<cocos2d::Rect>& platforms)
 {
+    // 记录本帧地面数据，供安全点判定用
+    _lastGroundRects = platforms;
+
     // A. 攻击冷却倒计时
     if (_attackCooldownTimer > 0) {
         _attackCooldownTimer -= dt;
@@ -692,7 +695,21 @@ void Player::setOnSoulChanged(const std::function<void(int)>& callback)
 // 新增：施法后刷新地面判定和安全坐标
 void Player::recordSafePositionIfOnGround()
 {
+    // 只有在地面且碰撞箱与地面有重叠时才记录安全点
     if (_isOnGround) {
-        _lastSafePosition = this->getPosition();
+        // 检查当前位置下方是否有地面
+        float checkY = this->getPositionY() - 2.0f;
+        cocos2d::Rect checkBox = this->getCollisionBox();
+        checkBox.origin.y = checkY;
+        bool hasGround = false;
+        for (const auto& rect : _lastGroundRects) {
+            if (checkBox.intersectsRect(rect)) {
+                hasGround = true;
+                break;
+            }
+        }
+        if (hasGround) {
+            _lastSafePosition = this->getPosition();
+        }
     }
 }

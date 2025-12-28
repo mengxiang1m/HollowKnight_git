@@ -1065,89 +1065,58 @@ void HelloWorld::loadMap(const std::string& mapPath)
     CCLOG("========== Map Loaded: %s ==========", mapPath.c_str());
 
     // 7. 根据关卡创建特定的敌人和对象
-    if (_currentLevel == 2)
+    // 修复：切换地图时只加载当前关卡对象，避免level2对象穿越到level1
+    if (_currentLevel == 1)
+    {
+        // 只创建level1对象（如有必要，可在此处添加level1专属对象创建代码）
+    }
+    else if (_currentLevel == 2)
     {
         _jars.clear();
-
         Jar::setupPuzzleJars(_gameLayer, _jars);
-
-        // ============================================================
-        // 【新增】进入 Level 2 时的解谜提示
-        // ============================================================
+        // 只创建level2对象
         auto visibleSize = Director::getInstance()->getVisibleSize();
-
-        // 创建对话框
         auto hintDialog = DreamDialogue::create("Listen to the dream...Three voices... Only one speaks the truth...Save that one to hold the flame...");
-
         if (hintDialog)
         {
-            // 设置位置：屏幕上方居中 (X居中, Y靠上)
-            // 注意：因为是直接加到 Scene (this) 上，所以不受 Camera 移动影响，是 UI 坐标
             hintDialog->setPosition(Vec2(visibleSize.width / 2, visibleSize.height-300));
-
-            // 加到最上层 (ZOrder 200)
             this->addChild(hintDialog, 200);
-
-            // 显示
             hintDialog->show();
-
             CCLOG("Level 2 Hint displayed.");
         }
-
     }
     else if (_currentLevel == 3)
     {
-        // ============================================================
-        // Level 3 特殊处理：手动加载背景图
-        // ============================================================
-        auto bg = Sprite::create("maps/GameAsset/fight.png"); // 确保路径对应 Resources/maps/GameAsset/fight.png
+        // 只创建level3对象
+        auto bg = Sprite::create("maps/GameAsset/fight.png");
         if (bg)
         {
             bg->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
-
-            // 【用户请求】使用上面定义的 mapOffset 来设置背景图位置
-            // 这样背景图和碰撞框就同步移动了！
             bg->setPosition(mapOffset);
-
-            // 添加到 map 节点的最底层 (-1)，这样它永远在 map 的其他元素（如碰撞）后面
             map->addChild(bg, -1);
-
-            // 强制同步地图大小为背景图大小
             map->setContentSize(bg->getContentSize());
-
             CCLOG("Success: Level 3 background loaded manually.");
         }
         else
         {
             CCLOG("Error: Failed to load Level 3 background 'maps/GameAsset/fight.png'");
         }
-
-        // ============================================================
-        // 【新增】创建 Boss
-        // ============================================================
-        // 地板 Y 坐标是 856（从 level3.tmx collision 可以看到）
-        // Boss 应该站在地板上，所以 Y = 856
         float groundY = 856.0f + mapOffset.y;
-        _boss = Boss::create(Vec2(1650 + mapOffset.x, groundY + 200));  // +200 让它从空中掉落
-       
+        _boss = Boss::create(Vec2(1650 + mapOffset.x, groundY + 200));
         CCLOG("DEBUG_STEP_6: Boss create() returned.");
-
         if (_boss)
         {
-            _boss->setTag(980);  // Boss tag
+            _boss->setTag(980);
             _gameLayer->addChild(_boss, 6);
             _bossTriggered = false;
-
-            // 【新增】设置火球回调
             _boss->setFireballCallback([this, mapOffset](const Vec2& pos) {
                 auto fireball = FKFireball::create("boss/rampageAttack/fk-fireball.png");
                 if (fireball)
                 {
-                    // 【修复】将 Boss 局部随机坐标转换为世界坐标
                     fireball->setPosition(Vec2(pos.x, pos.y));
-                    _gameLayer->addChild(fireball, 7); // 确保在 Boss 上面
+                    _gameLayer->addChild(fireball, 7);
                 }
-                });
+            });
             _boss->setShockwaveCallback([this](const Vec2& pos, float dir) {
                 auto shockwave = FKShockwave::create("boss/shockwaveAttack/fk-shockwave.png", dir);
                 if (shockwave)
@@ -1155,16 +1124,13 @@ void HelloWorld::loadMap(const std::string& mapPath)
                     shockwave->setPosition(pos);
                     _gameLayer->addChild(shockwave, 7);
                 }
-                });
-
+            });
             CCLOG("Boss created at (%.0f, %.0f) for falling", 1650 + mapOffset.x, groundY + 200);
         }
         else
         {
             CCLOG("Error: Failed to create Boss!");
         }
-
-        // 可以在这里添加 Level 3 的敌人
         CCLOG("Level 3 loaded - Ready for battle!");
     }
 
@@ -1433,5 +1399,26 @@ void HelloWorld::updateBossProjectiles(float dt)
                 shockwave->removeFromParent();
             }
         }
+    }
+}
+
+void HelloWorld::onPlayerDeath()
+{
+    // 主角死亡后重生在当前地图的左端
+    if (_player) {
+        float respawnY = 1300.0f; // 默认高度
+        float respawnX = 0.0f;
+        if (_currentLevel == 1) {
+            respawnX = 435.0f;
+        } else if (_currentLevel == 2) {
+            respawnX = 400.0f;
+        } else if (_currentLevel == 3) {
+            respawnX = 500.0f;
+        } else {
+            respawnX = 400.0f;
+        }
+        _player->setPosition(Vec2(respawnX, respawnY));
+        _player->setVelocityX(0);
+        // 可选：重置主角状态、血量等
     }
 }
